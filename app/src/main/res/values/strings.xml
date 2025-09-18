@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">medicamentos</string>
+    <string name="title_activity_home">HomeActivity</string>
+    <string name="title_activity_add_medication">AddMedicationActivity</string>
+    <string name="title_activity_schedule">ScheduleActivity</string>
+</resources>

@@ -1,0 +1,15 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.Medicamentos" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/light_blue</item>
+        <item name="colorOnPrimary">@color/black</item>
+
+        <item name="android:colorBackground">@color/dark_gray_bg</item>
+        <item name="colorSurface">@color/dark_gray_fg</item>
+        <item name="colorOnSurface">@color/white</item>
+
+        <item name="toggleBackgroundColor">#333333</item>
+        <item name="toggleTextColorInactive">@color/white</item>
+    </style>
+
+    <style name="Theme.Medicamentos" parent="Base.Theme.Medicamentos" />
+</resources>
