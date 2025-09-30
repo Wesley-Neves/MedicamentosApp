@@ -3,4 +3,8 @@
     <string name="title_activity_home">HomeActivity</string>
     <string name="title_activity_add_medication">AddMedicationActivity</string>
     <string name="title_activity_schedule">ScheduleActivity</string>
+    <string name="title_activity_caregiver_home">CaregiverHomeActivity</string>
+    <string name="title_activity_caregiver_schedule">CaregiverScheduleActivity</string>
+    <string name="title_activity_profile">ProfileActivity</string>
+    <string name="default_web_client_id" translatable="false">459897058195-rl7ml9qq92trd1g9njmko2rgu5vttmif.apps.googleusercontent.com</string>
 </resources>

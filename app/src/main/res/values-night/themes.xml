@@ -1,14 +1,19 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Base.Theme.Medicamentos" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/light_blue</item>
-        <item name="colorOnPrimary">@color/black</item>
+    <style name="Base.Theme.Medicamentos" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/md_blue_primaryContainer</item>
+        <item name="colorOnPrimary">@color/md_blue_onPrimaryContainer</item>
+        <item name="colorPrimaryContainer">@color/md_blue_primary</item>
+        <item name="colorOnPrimaryContainer">@color/md_blue_primaryContainer</item>
+        <item name="colorSecondaryContainer">#334A60</item> <item name="colorOnSecondaryContainer">#DCEFFD</item>
 
-        <item name="android:colorBackground">@color/dark_gray_bg</item>
-        <item name="colorSurface">@color/dark_gray_fg</item>
-        <item name="colorOnSurface">@color/white</item>
+        <item name="android:colorBackground">@color/md_dark_background</item>
+        <item name="colorSurface">@color/md_dark_surface</item>
+        <item name="colorOnSurface">@color/md_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_dark_onSurfaceVariant</item>
 
-        <item name="toggleBackgroundColor">#333333</item>
-        <item name="toggleTextColorInactive">@color/white</item>
+        <item name="toggleBackgroundColor">@color/md_dark_surfaceVariant</item>
+        <item name="toggleTextColorInactive">@color/md_dark_onSurface</item>
     </style>
 
     <style name="Theme.Medicamentos" parent="Base.Theme.Medicamentos" />

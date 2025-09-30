@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="light_gray">#FFE0E0E0</color>
-    <color name="dark_gray_bg">#FF121212</color>
-    <color name="dark_gray_fg">#FF212121</color>
-    <color name="dark_blue">#FF2C528B</color>
-    <color name="light_blue">#FF7CA1DB</color>
-    <color name="border_gray">#FF757575</color>
+    <color name="md_blue_primary">#00639B</color> <color name="md_blue_onPrimary">#FFFFFF</color>
+    <color name="md_blue_primaryContainer">#CDE5FF</color>
+    <color name="md_blue_onPrimaryContainer">#001D33</color>
+    <color name="md_blue_secondaryContainer">#DCEFFD</color> <color name="md_blue_onSecondaryContainer">#0E1E28</color>
+
+    <color name="md_light_background">#FCFCFF</color>
+    <color name="md_light_surface">#FCFCFF</color>
+    <color name="md_light_surfaceVariant">#E0E2EC</color>
+    <color name="md_light_onSurface">#1A1C1E</color>
+    <color name="md_light_onSurfaceVariant">#44474E</color>
+
+    <color name="md_dark_background">#1A1C1E</color>
+    <color name="md_dark_surface">#1A1C1E</color>
+    <color name="md_dark_surfaceVariant">#44474E</color>
+    <color name="md_dark_onSurface">#E3E2E6</color>
+    <color name="md_dark_onSurfaceVariant">#C4C6D0</color>
+
+    <color name="status_green_completed">#386A1F</color>
+    <color name="status_green_completed_container">#B9F397</color>
+    <color name="status_green_container">#E8F5E9</color> <color name="status_green_on_container">#1B5E20</color> ```
+    <color name="status_green_container_night">#2E4B27</color> <color name="status_green_on_container_night">#B9F397</color> ```
 </resources>

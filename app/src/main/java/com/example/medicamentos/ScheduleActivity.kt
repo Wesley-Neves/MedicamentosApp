@@ -25,95 +25,38 @@ import androidx.compose.ui.unit.dp
 import com.example.medicamentos.ui.theme.MedicamentosTheme
 import java.util.Date
 import java.util.concurrent.TimeUnit
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.medicamentos.data.MedicamentosApplication
+import com.example.medicamentos.data.TreatmentViewModel
+import com.example.medicamentos.data.TreatmentViewModelFactory
 
 class ScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+
+            val app = application as MedicamentosApplication
+            val viewModel: TreatmentViewModel = viewModel(
+                factory = TreatmentViewModelFactory(app.database.treatmentDao(), app)
+            )
+
             MedicamentosTheme {
-                ScheduleScreen()
+                ScheduleScreen(viewModel = viewModel)
             }
         }
     }
 }
-
-// ----- COMPONENTES DA UI -----
-
-@Composable
-fun TreatmentCard(treatment: Treatment) {
-    // Lógica para calcular o progresso
-    val progress = (treatment.daysCompleted.toFloat() / treatment.durationInDays).coerceIn(0f, 1f)
-    val daysRemaining = (treatment.durationInDays - treatment.daysCompleted).coerceAtLeast(0)
-    val isCompleted = daysRemaining == 0
-
-    val cardColor = when {
-        isCompleted -> Color(0xFFE8F5E9) // Verde para concluído
-        else -> MaterialTheme.colorScheme.secondaryContainer // Azul claro para em andamento
-    }
-    val progressColor = if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
-    val borderColor = if (isCompleted) Color(0xFF66BB6A) else Color.Transparent
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = treatment.medicationName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface // Cor de texto padrão para boa legibilidade
-                )
-                if (isCompleted) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Tratamento Finalizado",
-                        tint = progressColor
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Tratamento de ${treatment.durationInDays} dias",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = progressColor,
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val statusText = if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
-            Text(statusText, style = MaterialTheme.typography.bodyMedium, color = progressColor, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
 // ----- TELA PRINCIPAL DO CRONOGRAMA -----
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen() {
+fun ScheduleScreen( viewModel: TreatmentViewModel) {
     val context = LocalContext.current
 
-    // Os tratamentos vêm da fonte de dados central (DataManager)
-    val treatments = DataManager.treatmentList
+   val treatments by viewModel.allTreatments.collectAsState(initial = emptyList())
+
 
     Scaffold(
         topBar = {
@@ -138,7 +81,9 @@ fun ScheduleScreen() {
                     context.startActivity(intent)
                 },
                 onNavigateToSchedule = { /* Já estamos aqui */ },
-                onNavigateToProfile = { /* Lógica para ir ao Perfil */ }
+                onNavigateToProfile = {
+                    context.startActivity(Intent(context, ProfileActivity::class.java))
+                }
             )
         }
     ) { innerPadding ->
@@ -178,6 +123,6 @@ fun ScheduleScreen() {
 @Composable
 fun ScheduleScreenPreview() {
     MedicamentosTheme {
-        ScheduleScreen()
+
     }
 }

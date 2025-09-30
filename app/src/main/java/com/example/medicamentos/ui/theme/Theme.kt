@@ -9,7 +9,15 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowInsetsControllerCompat
+
+
+
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -48,6 +56,18 @@ fun MedicamentosTheme(
 
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    // --- LÓGICA PARA CONTROLAR AS CORES DA BARRA DE STATUS ---
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            // Define a cor da barra de status como transparente
+            window.statusBarColor = Color.Transparent.toArgb()
+            // Diz ao sistema se os ícones da barra de status devem ser escuros ou claros
+            WindowInsetsControllerCompat(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
     }
 
     MaterialTheme(

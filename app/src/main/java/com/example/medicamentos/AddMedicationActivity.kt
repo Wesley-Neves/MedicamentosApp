@@ -21,16 +21,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.example.medicamentos.data.Treatment
 import com.example.medicamentos.ui.theme.MedicamentosTheme
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.medicamentos.data.MedicamentosApplication
+import com.example.medicamentos.data.TreatmentViewModel
+import com.example.medicamentos.data.TreatmentViewModelFactory
 
 class AddMedicationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+
+            val app = application as MedicamentosApplication
+            val viewModel: TreatmentViewModel = viewModel(
+                factory = TreatmentViewModelFactory(app.database.treatmentDao(), app)
+            )
+
             MedicamentosTheme {
-                AddMedicationScreen(onNavigateBack = { finish() })
+                AddMedicationScreen(
+                    onNavigateBack = { finish() },
+                    viewModel = viewModel
+                )
             }
         }
     }
@@ -82,7 +96,7 @@ fun NumberSelector(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddMedicationScreen(onNavigateBack: () -> Unit) {
+fun AddMedicationScreen(onNavigateBack: () -> Unit, viewModel: TreatmentViewModel) {
     val context = LocalContext.current
 
     var medicationName by remember { mutableStateOf("") }
@@ -91,10 +105,18 @@ fun AddMedicationScreen(onNavigateBack: () -> Unit) {
     var frequencyPerDay by remember { mutableStateOf(3) }
     var intervalHours by remember { mutableStateOf(8) }
 
+    val currentTime = remember { Calendar.getInstance() }
+
     var showTimePicker by remember { mutableStateOf(false) }
-    val timePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0, is24Hour = true)
+
+    val timePickerState = rememberTimePickerState(
+        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
+        initialMinute = currentTime.get(Calendar.MINUTE),
+        is24Hour = true
+    )
 
     val isFormValid = medicationName.isNotBlank() && dosage.isNotBlank()
+
 
     Scaffold(
         topBar = {
@@ -104,42 +126,17 @@ fun AddMedicationScreen(onNavigateBack: () -> Unit) {
                 actions = {
                     TextButton(
                         onClick = {
-                            // 1. Cria o Tratamento para a tela Cronograma
-                            val newTreatmentId = Random().nextInt() // Gera um ID único para o novo tratamento
-
-                            // 1. Cria o Tratamento com daysCompleted = 0
                             val newTreatment = Treatment(
-                                id = newTreatmentId,
                                 medicationName = medicationName,
+                                dosage = dosage,
                                 startDate = Date(),
                                 durationInDays = durationDays,
-                                daysCompleted = 0 // Começa com 0 dias completos
+                                frequencyPerDay = frequencyPerDay,
+                                startHour = timePickerState.hour,
+                                startMinute = timePickerState.minute,
+                                intervalHours = intervalHours
                             )
-                            DataManager.treatmentList.add(newTreatment)
-
-                            // 2. Cria as Doses, associando-as com o newTreatmentId
-                            val calendar = Calendar.getInstance()
-                            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-                            calendar.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                            calendar.set(Calendar.MINUTE, timePickerState.minute)
-
-                            val newDosesForTheDay = (0 until frequencyPerDay).map { i ->
-                                val doseCalendar = Calendar.getInstance().apply {
-                                    time = calendar.time
-                                    add(Calendar.HOUR_OF_DAY, i * intervalHours)
-                                }
-                                Medication(
-                                    id = Random().nextInt(),
-                                    treatmentId = newTreatmentId, // <-- Associa a dose ao tratamento
-                                    name = medicationName,
-                                    dosage = dosage,
-                                    time = sdf.format(doseCalendar.time),
-                                    status = MedicationStatus.PENDING
-                                )
-                            }
-
-                            // 3. Adiciona as novas doses à lista central
-                            DataManager.medicationDoseList.addAll(newDosesForTheDay)
+                            viewModel.insertTreatment(newTreatment)
 
                             Toast.makeText(context, "$medicationName salvo!", Toast.LENGTH_SHORT).show()
                             onNavigateBack()
@@ -260,9 +257,7 @@ fun CalculatedTimesPreview(startHour: Int, startMinute: Int, frequency: Int, int
 @Preview(showBackground = true)
 @Composable
 fun AddMedicationPreview() {
-    MedicamentosTheme {
-        AddMedicationScreen(onNavigateBack = {})
-    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

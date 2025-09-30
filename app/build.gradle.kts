@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     id("kotlin-parcelize")
+    alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -84,4 +86,19 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    implementation(platform(libs.firebase.bom)) // BOM gerencia as versões do Firebase
+    implementation(libs.firebase.auth.ktx)      // Para Autenticação
+    implementation(libs.firebase.firestore.ktx) // Para o Banco de Dados Firestore
+    implementation(libs.play.services.auth)
+
+    // Dependências do Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler) // O 'ksp' é para o processador de anotações
+
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // Dependência do WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
 }

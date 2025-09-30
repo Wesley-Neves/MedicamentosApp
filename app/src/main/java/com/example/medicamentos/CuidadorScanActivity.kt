@@ -1,5 +1,6 @@
 package com.example.medicamentos
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
@@ -7,7 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -25,16 +28,17 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.medicamentos.ui.theme.MedicamentosTheme
+// ADICIONE ESTAS IMPORTAÇÕES
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import com.journeyapps.barcodescanner.CaptureManager
 import com.journeyapps.barcodescanner.DecoratedBarcodeView
 
 class CuidadorScanActivity : ComponentActivity() {
 
-    // Lógica para pedir permissão de câmera
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
-                // Permissão concedida, o compose tentará recriar o scanner
                 recreate()
             } else {
                 Toast.makeText(this, "Permissão da câmera é necessária para escanear.", Toast.LENGTH_LONG).show()
@@ -47,38 +51,108 @@ class CuidadorScanActivity : ComponentActivity() {
 
         setContent {
             MedicamentosTheme {
-                // Verifica a permissão antes de exibir a UI
-                when (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)) {
-                    PackageManager.PERMISSION_GRANTED -> {
-                        // Se já temo a permissão, mostra a tela de scan
-                        CuidadorScanScreen(onCodeScanned = { result ->
-                            Toast.makeText(this, "Código escaneado: $result. Vinculando...", Toast.LENGTH_LONG).show()
-                            finish()
-                        })
-                    }
-                    else -> {
-                        // Se não tem, lança o pedido de permissão
-                        SideEffect {
-                            requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    when (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)) {
+                        PackageManager.PERMISSION_GRANTED -> {
+                            CuidadorScanScreen(onCodeScanned = { result ->
+                                val prefix = "medlembrete://vincular?uid="
+                                if (result.startsWith(prefix)) {
+                                    val patientUid = result.substringAfter(prefix)
+                                    // ✨ MUDANÇA PRINCIPAL: Chamamos a função para buscar dados no Firebase
+                                    fetchPatientNameAndNavigate(patientUid)
+                                } else {
+                                    Toast.makeText(this, "Código QR inválido ou não compatível.", Toast.LENGTH_LONG).show()
+                                    // O ideal seria reiniciar o scanner aqui, mas por enquanto um aviso é suficiente.
+                                }
+                            })
                         }
-                        // Mostra uma tela de carregamento ou informativa enquanto pede permissão
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Pedindo permissão da câmera...")
+                        else -> {
+                            SideEffect {
+                                requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                            }
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Pedindo permissão da câmera...")
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    // ✨ NOVA FUNÇÃO: Lógica para buscar os dados no Firestore
+    private fun fetchPatientNameAndNavigate(patientUid: String) {
+        Toast.makeText(this, "Verificando paciente...", Toast.LENGTH_SHORT).show()
+
+        val db = Firebase.firestore
+        db.collection("users").document(patientUid).get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    // Sucesso! O paciente foi encontrado.
+                    val patientName = document.getString("name") ?: "Paciente"
+
+                    // Navega para a tela do cuidador com os dados corretos
+                    val intent = Intent(this, CaregiverHomeActivity::class.java).apply {
+                        putExtra("PATIENT_UID", patientUid)
+                        putExtra("PATIENT_NAME", patientName)
+                    }
+                    startActivity(intent)
+                    finish()
+
+                } else {
+                    // Erro: O UID do QR Code não existe no banco de dados.
+                    Toast.makeText(this, "Paciente não encontrado!", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+            .addOnFailureListener { exception ->
+                // Erro de conexão ou outro problema com o Firebase.
+                Toast.makeText(this, "Erro ao buscar dados: ${exception.message}", Toast.LENGTH_LONG).show()
+                finish()
+            }
+    }
 }
 
+
+// O Composable CuidadorScanScreen não precisa de nenhuma alteração.
 @Composable
 fun CuidadorScanScreen(onCodeScanned: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // O CaptureManager controla o ciclo de vida do scanner
-    var captureManager: CaptureManager? = null
+    val barcodeView = remember {
+        DecoratedBarcodeView(context)
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val activity = context as ComponentActivity
+        val captureManager = CaptureManager(activity, barcodeView)
+        captureManager.initializeFromIntent(activity.intent, null)
+
+        barcodeView.decodeContinuous { result ->
+            result.text?.let { barCodeOrQr ->
+                if (barCodeOrQr.startsWith("medlembrete://vincular?uid=")){
+                    barcodeView.pause()
+                }
+                onCodeScanned(barCodeOrQr)
+            }
+        }
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> captureManager.onResume()
+                Lifecycle.Event.ON_PAUSE -> captureManager.onPause()
+                Lifecycle.Event.ON_DESTROY -> captureManager.onDestroy()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            captureManager.onDestroy()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -101,63 +175,21 @@ fun CuidadorScanScreen(onCodeScanned: (String) -> Unit) {
         )
         Spacer(modifier = Modifier.height(32.dp))
 
-        // O AndroidView é a ponte entre o Compose e o sistema de Views antigo
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f) // Ocupa o espaço restante
+                .weight(1f)
                 .padding(bottom = 64.dp)
         ) {
-            AndroidView(
-                factory = {
-                    // 1. Cria a View do Scanner
-                    DecoratedBarcodeView(context).apply {
-                        // Configura o que acontece quando um código é lido
-                        decodeContinuous { result ->
-                            result.text?.let {
-                                onCodeScanned(it)
-                            }
-                        }
-                    }
-                },
-                update = { view ->
-                    // Pega a activity a partir do contexto
-                    val activity = context as ComponentActivity
-
-                    if (captureManager == null) {
-                        captureManager = CaptureManager(activity, view)
-                    }
-                    // Usamos o intent da activity
-                    captureManager?.initializeFromIntent(activity.intent, null)
-                    captureManager?.decode()
-                }
-            )
-
-            // 3. Gerencia o ciclo de vida (onResume, onPause, etc.)
-            DisposableEffect(lifecycleOwner) {
-                val observer = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_RESUME -> captureManager?.onResume()
-                        Lifecycle.Event.ON_PAUSE -> captureManager?.onPause()
-                        Lifecycle.Event.ON_DESTROY -> captureManager?.onDestroy()
-                        else -> {}
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                }
-            }
+            AndroidView(factory = { barcodeView })
         }
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable
 fun CuidadorScanScreenPreview() {
     MedicamentosTheme {
-        // No preview, não pode mostrar a câmera, então é passado uma função vazia
         CuidadorScanScreen(onCodeScanned = {})
     }
 }

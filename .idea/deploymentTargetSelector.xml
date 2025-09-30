@@ -8,9 +8,6 @@
       <SelectionState runConfigName="MainActivity">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="AddMedicationActivity">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
       <SelectionState runConfigName="CadastroScreenPreview">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.colorResource
+import com.example.medicamentos.data.MedicationDose
+import com.example.medicamentos.data.MedicationStatus
+import com.example.medicamentos.data.Treatment
 
 /**
  * Barra de navegação reutilizável para todo o app.
@@ -56,15 +61,31 @@ fun AppBottomNavigationBar(
             selected = currentScreen == "Cronograma",
             onClick = onNavigateToSchedule,
             icon = { Icon(Icons.Default.DateRange, contentDescription = "Cronograma", modifier = Modifier.size(iconSize)) },
-            label = { Text("Cronograma", fontSize = labelSize) }
+            label = { Text("Cronograma", fontSize = labelSize) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                selectedTextColor = MaterialTheme.colorScheme.primary,
+                indicatorColor = MaterialTheme.colorScheme.primary
+            )
         )
         // Item "Perfil"
         NavigationBarItem(
             modifier = Modifier.padding(vertical = 8.dp),
             selected = currentScreen == "Perfil",
-            onClick = onNavigateToProfile,
-            icon = { Icon(Icons.Default.Person, contentDescription = "Perfil", modifier = Modifier.size(iconSize)) },
-            label = { Text("Perfil", fontSize = labelSize) }
+            onClick = { onNavigateToProfile() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Perfil",
+                    modifier = Modifier.size(iconSize)
+                )
+            },
+            label = { Text("Perfil") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                selectedTextColor = MaterialTheme.colorScheme.primary,
+                indicatorColor = MaterialTheme.colorScheme.primary
+            )
         )
     }
 }
@@ -232,3 +253,118 @@ fun OrDivider() {
     }
 }
 
+//tratamento
+@Composable
+fun TreatmentCard(treatment: Treatment) {
+    val progress = (treatment.daysCompleted.toFloat() / treatment.durationInDays).coerceIn(0f, 1f)
+    val daysRemaining = (treatment.durationInDays - treatment.daysCompleted).coerceAtLeast(0)
+    val isCompleted = daysRemaining == 0 || treatment.daysCompleted >= treatment.durationInDays
+
+    val cardColor = if (isCompleted) {
+        colorResource(id = R.color.status_green_container)
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+
+    val contentColor = if (isCompleted) {
+        colorResource(id = R.color.status_green_on_container)
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+        // A borda não é mais necessária, pois o contraste virá das cores do container
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = treatment.medicationName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor // Usa a cor de conteúdo adaptável
+                )
+                if (isCompleted) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Tratamento Finalizado",
+                        tint = contentColor // Usa a cor de conteúdo adaptável
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Tratamento de ${treatment.durationInDays} dias",
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor.copy(alpha = 0.7f) // Usa a cor de conteúdo com transparência
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = contentColor, // Usa a cor de conteúdo adaptável
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val statusText = if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor, // Usa a cor de conteúdo adaptável
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun CaregiverMedicationCard(medication: MedicationDose) { // ✅ Usa MedicationDose
+    val isTaken = medication.status == MedicationStatus.TAKEN
+    val cardColor = if (isTaken) colorResource(id = R.color.status_green_container) else MaterialTheme.colorScheme.surfaceVariant
+    val iconBackgroundColor = if (isTaken) colorResource(id = R.color.status_green_on_container) else MaterialTheme.colorScheme.primary
+    val iconContentColor = if (isTaken) colorResource(id = R.color.status_green_container) else MaterialTheme.colorScheme.onPrimary
+    val statusIconColor = if (isTaken) colorResource(id = R.color.status_green_on_container) else Color.Gray
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(50.dp).clip(CircleShape).background(iconBackgroundColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Medication, contentDescription = "Ícone de medicamento", modifier = Modifier.size(28.dp), tint = iconContentColor)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    // ✅ Usa medication.medicationName, o campo correto da entidade
+                    Text(text = medication.medicationName, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text(text = medication.dosage, fontSize = 16.sp, color = Color.Gray)
+                }
+            }
+            val statusIcon = if (isTaken) Icons.Default.CheckCircle else Icons.Default.Schedule
+            Icon(imageVector = statusIcon, contentDescription = if (isTaken) "Tomado" else "Pendente", modifier = Modifier.size(36.dp), tint = statusIconColor)
+        }
+    }
+}
