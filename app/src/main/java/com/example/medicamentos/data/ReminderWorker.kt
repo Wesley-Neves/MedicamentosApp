@@ -52,7 +52,7 @@ class ReminderWorker(
             notificationManager.createNotificationChannel(channel)
         }
 
-       val builder = NotificationCompat.Builder(applicationContext, channelId)
+        val builder = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(R.drawable.ic_medication) // Ícone que aparece na barra de status
             .setContentTitle("Hora de tomar: $name") // Título da notificação
             .setContentText("Dosagem: $dosage") // Corpo da notificação

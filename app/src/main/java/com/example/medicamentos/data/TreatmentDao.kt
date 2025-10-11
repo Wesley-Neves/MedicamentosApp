@@ -27,7 +27,7 @@ interface TreatmentDao {
 
     // --- Funções de Doses Diárias ---
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertDoses(doses: List<MedicationDose>)
+    suspend fun insertDose(dose: MedicationDose): Long
 
     @Update
     suspend fun updateDose(dose: MedicationDose)
@@ -51,10 +51,34 @@ interface TreatmentDao {
     @Query("DELETE FROM daily_doses")
     suspend fun clearAllDoses()
 
+
     @Transaction
     suspend fun clearAllData() {
         clearAllDoses()
         clearAllTreatments()
         Log.d("DAO", "Todos os dados locais foram limpos")
     }
+
+    @Query("DELETE FROM treatments WHERE id = :treatmentId")
+    suspend fun deleteTreatmentById(treatmentId: Int)
+
+    @Query("DELETE FROM daily_doses WHERE treatmentId = :treatmentId")
+    suspend fun deleteDosesByTreatmentId(treatmentId: Int)
+
+    // Transação para garantir que ambos sejam deletados com segurança
+    @Transaction
+    suspend fun deleteTreatmentAndDoses(treatmentId: Int) {
+        deleteDosesByTreatmentId(treatmentId)
+        deleteTreatmentById(treatmentId)
+        Log.d("DAO", "Tratamento $treatmentId e suas doses foram deletados.")
+    }
+
+    @Query("DELETE FROM daily_doses WHERE id = :doseId")
+    suspend fun deleteDoseById(doseId: Int)
+
+    @Query("SELECT * FROM daily_doses WHERE status IN ('TAKEN', 'MISSED') ORDER BY date DESC, time DESC")
+    fun getPastDosesHistory(): Flow<List<MedicationDose>>
+
+    @Query("SELECT * FROM daily_doses WHERE date = :date AND status = 'PENDING'")
+    suspend fun getPendingDosesForDate(date: String): List<MedicationDose>
 }

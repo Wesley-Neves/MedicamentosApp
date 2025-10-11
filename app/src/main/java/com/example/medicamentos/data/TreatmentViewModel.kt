@@ -15,14 +15,71 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class TreatmentViewModel(private val dao: TreatmentDao, private val application: Application) : ViewModel() {
 
     private val db = Firebase.firestore
     private val auth = Firebase.auth
 
+    private val _treatmentToEdit = MutableStateFlow<Treatment?>(null)
+    val treatmentToEdit = _treatmentToEdit.asStateFlow()
+
     val allTreatments: Flow<List<Treatment>> = dao.getAllTreatments()
     fun getDosesForDate(date: String): Flow<List<MedicationDose>> = dao.getDosesForDate(date)
+
+    fun loadTreatmentById(id: Int) {
+        viewModelScope.launch {
+            _treatmentToEdit.value = dao.getTreatmentById(id)
+        }
+    }
+
+    fun clearEditingTreatment() {
+        _treatmentToEdit.value = null
+    }
+
+    fun updateTreatmentAndRescheduleDoses(updatedTreatment: Treatment) = viewModelScope.launch {
+        val userId = auth.currentUser?.uid ?: return@launch
+
+        // 1. Busca todas as doses antigas para cancelar os alarmes
+        val oldDoses = dao.getDosesForTreatmentOnDate(updatedTreatment.id, "%") // '%' é um curinga para qualquer data
+        oldDoses.forEach { dose ->
+            AlarmScheduler.cancel(application.applicationContext, dose)
+        }
+
+        // 2. Deleta todas as doses antigas do Room
+        dao.deleteDosesByTreatmentId(updatedTreatment.id)
+
+        // 3. Atualiza o tratamento no Room
+        dao.updateTreatment(updatedTreatment)
+
+        // 4. Sincroniza as deleções e a atualização com o Firestore
+        // (Esta parte é complexa, vamos simplificar deletando e recriando)
+        deleteTreatmentFromFirestore(updatedTreatment.id, userId) // Função auxiliar
+        db.collection("users").document(userId)
+            .collection("treatments").document(updatedTreatment.id.toString())
+            .set(updatedTreatment)
+            .addOnSuccessListener { Log.d("Firestore", "Tratamento ${updatedTreatment.id} re-sincronizado.") }
+
+        // 5. Gera e salva as novas doses e agenda os novos alarmes
+        // Reutilizamos a função que já existe!
+        generateAndSaveDoses(listOf(updatedTreatment), userId)
+    }
+
+    // Função auxiliar para deletar doses antigas do Firestore
+    private fun deleteTreatmentFromFirestore(treatmentId: Int, userId: String) {
+        db.collection("users").document(userId)
+            .collection("doses").whereEqualTo("treatmentId", treatmentId)
+            .get()
+            .addOnSuccessListener { documents ->
+                val batch = db.batch()
+                for (document in documents) {
+                    batch.delete(document.reference)
+                }
+                batch.commit().addOnSuccessListener { Log.d("Firestore", "Doses antigas do tratamento $treatmentId deletadas.") }
+            }
+    }
 
     /**
      * Insere um novo tratamento e gera TODAS as suas doses futuras.
@@ -47,7 +104,49 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
 
         // 3. Gera todas as doses para a duração do tratamento e agenda os alarmes
         generateAndSaveDoses(listOf(treatmentWithId), userId)
-        scheduleRemindersForTreatment(treatmentWithId)
+    }
+
+    fun deleteTreatment(treatment: Treatment) = viewModelScope.launch {
+        val userId = auth.currentUser?.uid ?: return@launch
+
+        // 1. Deleta do Room (usando a transação)
+        dao.deleteTreatmentAndDoses(treatment.id)
+
+        // 2. Deleta do Firestore
+        // Primeiro, deleta o documento do tratamento
+        db.collection("users").document(userId)
+            .collection("treatments").document(treatment.id.toString())
+            .delete()
+            .addOnSuccessListener { Log.d("Firestore", "Tratamento ${treatment.id} deletado da nuvem.") }
+            .addOnFailureListener { e -> Log.w("Firestore", "Erro ao deletar tratamento da nuvem", e) }
+
+        // Depois, deleta todas as doses associadas na nuvem
+        // (Isso é mais complexo, a forma mais simples é buscar e deletar em lote)
+        db.collection("users").document(userId)
+            .collection("doses").whereEqualTo("treatmentId", treatment.id)
+            .get()
+            .addOnSuccessListener { documents ->
+                val batch = db.batch()
+                for (document in documents) {
+                    batch.delete(document.reference)
+                }
+                batch.commit()
+                    .addOnSuccessListener { Log.d("Firestore", "Doses do tratamento ${treatment.id} deletadas da nuvem.") }
+            }
+    }
+
+    fun deleteDose(dose: MedicationDose) = viewModelScope.launch {
+        val userId = auth.currentUser?.uid ?: return@launch
+
+        // 1. Deleta do Room
+        dao.deleteDoseById(dose.id)
+
+        // 2. Deleta do Firestore
+        val doseDocId = "${dose.treatmentId}_${dose.date}_${dose.time}_${dose.medicationName.hashCode()}"
+        db.collection("users").document(userId)
+            .collection("doses").document(doseDocId)
+            .delete()
+            .addOnSuccessListener { Log.d("Firestore", "Dose ${dose.id} deletada da nuvem.") }
     }
 
     /**
@@ -239,7 +338,9 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
                         }
 
                         if (dosesToInsert.isNotEmpty()) {
-                            dao.insertDoses(dosesToInsert)
+                            dosesToInsert.forEach { dose ->
+                                dao.insertDose(dose)
+                            }
                             Log.d("SyncDebug", "${dosesToInsert.size} doses inseridas")
                         }
 
@@ -250,22 +351,22 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
             .addOnFailureListener { e ->
                 Log.e("SyncDebug", "Erro ao buscar doses da nuvem", e)
             }
+
     }
 
     /**
      * Gera e salva doses APENAS se não existirem
      */
     private fun generateAndSaveDoses(treatments: List<Treatment>, userId: String) = viewModelScope.launch {
-        Log.d("DoseDebug", "Gerando doses para ${treatments.size} tratamentos NOVOS")
+        Log.d("DoseDebug", "Gerando doses para ${treatments.size} tratamentos")
 
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val sdfTime = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val dosesToInsert = mutableListOf<MedicationDose>()
         val dosesToSaveInFirestore = mutableListOf<MedicationDose>()
 
         treatments.forEach { treatment ->
             val medName = treatment.medicationName.ifEmpty { "Medicamento sem nome" }
-            Log.d("DoseDebug", "Verificando doses para: $medName")
+            Log.d("DoseDebug", "Processando tratamento: $medName")
 
             for (day in 0 until treatment.durationInDays) {
                 (0 until treatment.frequencyPerDay).forEach { i ->
@@ -281,40 +382,40 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
                     val doseDate = sdfDate.format(doseCalendar.time)
                     val doseTime = sdfTime.format(doseCalendar.time)
 
-                    val newDose = MedicationDose(
-                        treatmentId = treatment.id,
-                        medicationName = treatment.medicationName,
-                        dosage = treatment.dosage,
-                        time = doseTime,
-                        date = doseDate,
-                        status = MedicationStatus.PENDING
-                    )
-
-                    // CORREÇÃO: Verifica se a dose já existe consultando o DAO
+                    // Verifica se a dose já existe ANTES de qualquer coisa
                     val existingDoses = dao.getDosesForTreatmentOnDate(treatment.id, doseDate)
                     val doseAlreadyExists = existingDoses.any { it.time == doseTime && it.medicationName == treatment.medicationName }
 
                     if (!doseAlreadyExists) {
-                        dosesToInsert.add(newDose)
-                        dosesToSaveInFirestore.add(newDose)
-                        Log.d("DoseDebug", "Dose nova: ${treatment.medicationName} - $doseTime - $doseDate")
-                    } else {
-                        Log.d("DoseDebug", "Dose já existe: ${treatment.medicationName} - $doseTime - $doseDate")
+                        // Se não existe, cria o objeto (com id=0)
+                        val newDose = MedicationDose(
+                            treatmentId = treatment.id,
+                            medicationName = treatment.medicationName,
+                            dosage = treatment.dosage,
+                            time = doseTime,
+                            date = doseDate,
+                            status = MedicationStatus.PENDING
+                        )
+
+                        // Insere no banco e PEGA O ID REAL de volta
+                        val generatedId = dao.insertDose(newDose)
+
+                        // Cria uma cópia da dose, agora com o ID correto
+                        val doseWithId = newDose.copy(id = generatedId.toInt())
+
+                        // Agenda o alarme USANDO O OBJETO COM O ID CORRETO
+                        Log.d("AlarmScheduling", "Agendando alarme para dose com ID REAL: ${doseWithId.id}")
+                        AlarmScheduler.schedule(application.applicationContext, doseWithId)
+
+                        // Adiciona na lista para salvar no Firestore depois
+                        dosesToSaveInFirestore.add(doseWithId)
                     }
                 }
             }
         }
 
-        Log.d("DoseDebug", "Doses a inserir no Room: ${dosesToInsert.size}")
-        Log.d("DoseDebug", "Doses a salvar no Firestore: ${dosesToSaveInFirestore.size}")
-
-        // Insere no Room APENAS doses que não existem
-        if (dosesToInsert.isNotEmpty()) {
-            dao.insertDoses(dosesToInsert)
-            Log.d("DoseDebug", "${dosesToInsert.size} doses NOVAS salvas no Room")
-        }
-
-        // Salva no Firestore APENAS doses que não existem
+        // A lógica de salvar no Firestore continua a mesma, mas agora usa
+        // a lista de doses que foram realmente criadas e agendadas.
         if (dosesToSaveInFirestore.isNotEmpty()) {
             val batch = db.batch()
             dosesToSaveInFirestore.forEach { dose ->
@@ -324,49 +425,16 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
             }
             batch.commit()
                 .addOnSuccessListener {
-                    Log.d("DoseDebug", "${dosesToSaveInFirestore.size} doses NOVAS salvas na nuvem")
+                    Log.d("DoseDebug", "${dosesToSaveInFirestore.size} doses salvas na nuvem")
                 }
                 .addOnFailureListener { e ->
-                    Log.e("DoseDebug", "Erro ao salvar doses NOVAS na nuvem", e)
+                    Log.e("DoseDebug", "Erro ao salvar doses na nuvem", e)
                 }
-        } else {
-            Log.d("DoseDebug", "Nenhuma dose nova para salvar no Firestore")
         }
     }
 
     // Função agora obsoleta.
     fun generateDosesForTodayIfNeeded() = viewModelScope.launch { }
-
-    private fun scheduleRemindersForTreatment(treatment: Treatment) {
-        val workManager = WorkManager.getInstance(application)
-        val data = Data.Builder()
-            .putInt(ReminderWorker.KEY_TREATMENT_ID, treatment.id)
-            .putString(ReminderWorker.KEY_MEDICATION_NAME, treatment.medicationName)
-            .putString(ReminderWorker.KEY_MEDICATION_DOSAGE, treatment.dosage)
-            .build()
-
-        val now = Calendar.getInstance()
-
-        (0 until treatment.frequencyPerDay).forEach { i ->
-            val nextDose = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, treatment.startHour)
-                set(Calendar.MINUTE, treatment.startMinute)
-                set(Calendar.SECOND, 0)
-                add(Calendar.HOUR_OF_DAY, i * treatment.intervalHours)
-                if (before(now)) add(Calendar.DAY_OF_YEAR, 1)
-            }
-
-            val initialDelay = nextDose.timeInMillis - now.timeInMillis
-
-            val reminderRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
-                .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-                .setInputData(data)
-                .addTag("reminder_for_treatment_${treatment.id}")
-                .build()
-
-            workManager.enqueue(reminderRequest)
-        }
-    }
 
     /**
      * Limpa todos os dados locais (útil para logout)

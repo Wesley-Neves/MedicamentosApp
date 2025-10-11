@@ -1,5 +1,6 @@
 package com.example.medicamentos
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -93,6 +94,13 @@ fun CaregiverHomeScreen(
                 actions = {
                     IconButton(
                         onClick = {
+
+                            val sharedPreferences = context.getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+                            with(sharedPreferences.edit()) {
+                                clear() // Limpa todos os dados salvos (is_caregiver_mode, patient_uid, etc.)
+                                apply()
+                            }
+
                             val intent = Intent(context, MainActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             }

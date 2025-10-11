@@ -1,5 +1,8 @@
 package com.example.medicamentos
 
+
+import com.example.medicamentos.formatDob
+import com.example.medicamentos.formatPhone
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
@@ -16,8 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -35,9 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.medicamentos.data.MedicamentosApplication
 import com.example.medicamentos.data.UserProfile
 import com.example.medicamentos.data.ProfileViewModel
 import com.example.medicamentos.data.ProfileViewModelFactory
+import com.example.medicamentos.data.TreatmentViewModel
+import com.example.medicamentos.data.TreatmentViewModelFactory
 import com.example.medicamentos.ui.theme.MedicamentosTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
@@ -45,6 +53,7 @@ import com.google.firebase.ktx.Firebase
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.journeyapps.barcodescanner.BarcodeEncoder
+import androidx.core.view.WindowCompat
 
 class ProfileActivity : ComponentActivity() {
 
@@ -53,6 +62,8 @@ class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val currentUser = auth.currentUser
 
@@ -80,6 +91,11 @@ fun ProfileScreen(
     viewModel: ProfileViewModel
 ) {
     val context = LocalContext.current
+    val activity = context.applicationContext as MedicamentosApplication
+
+    val treatmentViewModel: TreatmentViewModel = viewModel(
+        factory =TreatmentViewModelFactory(activity.database.treatmentDao(), activity)
+    )
 
     LaunchedEffect(Unit) {
         viewModel.fetchUserProfile()
@@ -126,13 +142,14 @@ fun ProfileScreen(
             ProfileContent(
                 modifier = Modifier.padding(innerPadding),
                 auth = auth,
-                profile = userProfile!!
+                profile = userProfile!!,
+                treatmentViewModel = treatmentViewModel
             )
         }
     }
 }
 @Composable
-fun ProfileContent(modifier: Modifier = Modifier, auth: FirebaseAuth, profile: UserProfile) {
+fun ProfileContent(modifier: Modifier = Modifier, auth: FirebaseAuth, profile: UserProfile, treatmentViewModel: TreatmentViewModel) {
     val context = LocalContext.current
 
     // O QR Code é gerado com o ID único do usuário (profile.uid)
@@ -163,6 +180,7 @@ fun ProfileContent(modifier: Modifier = Modifier, auth: FirebaseAuth, profile: U
 
         Button(
             onClick = {
+                treatmentViewModel.clearLocalData()
                 auth.signOut()
                 val intent = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -179,8 +197,18 @@ fun ProfileContent(modifier: Modifier = Modifier, auth: FirebaseAuth, profile: U
 
         Divider(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), color = Color.Gray.copy(alpha = 0.2f))
 
-        ProfileInfoRow(label = "Telefone:", value = profile.phone)
-        ProfileInfoRow(label = "Nascimento:", value = profile.dob)
+        ProfileInfoRow(label = "Telefone:", value = formatPhone(profile.phone))
+        ProfileInfoRow(label = "Nascimento:", value = formatDob(profile.dob))
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = { context.startActivity(Intent(context, ReportActivity::class.java)) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.ListAlt, contentDescription = null) // Ícone de lista/relatório
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Ver Histórico de Doses")
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
         Text("Compartilhar com Cuidador", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))

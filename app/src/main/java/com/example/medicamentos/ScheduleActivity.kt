@@ -1,5 +1,6 @@
 package com.example.medicamentos
 
+import androidx.compose.material3.TopAppBarDefaults
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -31,10 +32,15 @@ import androidx.compose.runtime.getValue
 import com.example.medicamentos.data.MedicamentosApplication
 import com.example.medicamentos.data.TreatmentViewModel
 import com.example.medicamentos.data.TreatmentViewModelFactory
+import androidx.core.view.WindowCompat
+
 
 class ScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         setContent {
 
             val app = application as MedicamentosApplication
@@ -61,8 +67,9 @@ fun ScheduleScreen( viewModel: TreatmentViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
+                windowInsets = TopAppBarDefaults.windowInsets,
                 title = {
-                    Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                    Column(modifier = Modifier.statusBarsPadding()) {
                         Text("Cronograma", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         Text("O progresso dos seus tratamentos", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
                     }
@@ -111,7 +118,10 @@ fun ScheduleScreen( viewModel: TreatmentViewModel) {
                 contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
             ) {
                 items(treatments) { treatment ->
-                    TreatmentCard(treatment = treatment)
+                    TreatmentCard(
+                        treatment = treatment,
+                        onDelete = { viewModel.deleteTreatment(it) }
+                    )
                 }
             }
         }

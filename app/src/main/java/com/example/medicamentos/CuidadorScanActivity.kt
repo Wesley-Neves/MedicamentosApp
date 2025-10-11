@@ -1,5 +1,6 @@
 package com.example.medicamentos
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -91,10 +92,20 @@ class CuidadorScanActivity : ComponentActivity() {
                     // Sucesso! O paciente foi encontrado.
                     val patientName = document.getString("name") ?: "Paciente"
 
+                    // ✨ SALVANDO O ESTADO DO MODO CUIDADOR ✨
+                    val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+                    with(sharedPreferences.edit()) {
+                        putBoolean("KEY_IS_CAREGIVER_MODE", true)
+                        putString("KEY_PATIENT_UID", patientUid)
+                        putString("KEY_PATIENT_NAME", patientName)
+                        apply() // Salva as alterações
+                    }
+
                     // Navega para a tela do cuidador com os dados corretos
                     val intent = Intent(this, CaregiverHomeActivity::class.java).apply {
                         putExtra("PATIENT_UID", patientUid)
                         putExtra("PATIENT_NAME", patientName)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                     }
                     startActivity(intent)
                     finish()

@@ -121,7 +121,8 @@ fun CompletarCadastroScreen(
                         value = telefone,
                         onValueChange = { telefone = it },
                         placeholder = "(XX) XXXXX-XXXX",
-                        keyboardType = KeyboardType.Phone
+                        keyboardType = KeyboardType.Phone,
+                        visualTransformation = PhoneVisualTransformation()
                     )
                     // Campo Data de Nascimento (Habilitado)
                     FormField(
@@ -129,7 +130,8 @@ fun CompletarCadastroScreen(
                         value = dataNascimento,
                         onValueChange = { dataNascimento = it },
                         placeholder = "DD/MM/AAAA",
-                        keyboardType = KeyboardType.Text
+                        keyboardType = KeyboardType.Number,
+                        visualTransformation = DateVisualTransformation()
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))

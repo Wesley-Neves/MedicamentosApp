@@ -15,10 +15,14 @@ data class MedicationDose(
     val dosage: String = "",
     val time: String = "",
     val date: String = "",
-    var status: MedicationStatus = MedicationStatus.PENDING
+    var status: MedicationStatus = MedicationStatus.PENDING,
+    var takenTimestamp: Long? = null,
+    val postponeCount: Int = 0
 ) : Parcelable
 
 @Parcelize
 enum class MedicationStatus : Parcelable {
-    PENDING, TAKEN
+    PENDING,
+    TAKEN,
+    MISSED
 }

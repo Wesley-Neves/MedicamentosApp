@@ -33,6 +33,16 @@ import com.example.medicamentos.data.TreatmentViewModelFactory
 class AddMedicationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val treatmentId = intent.getIntExtra("TREATMENT_ID", -1)
+
+        val voiceExtras = Bundle().apply {
+            putString("VOICE_MEDICATION_NAME", intent.getStringExtra("VOICE_MEDICATION_NAME"))
+            putString("VOICE_DOSAGE", intent.getStringExtra("VOICE_DOSAGE"))
+            putInt("VOICE_DURATION", intent.getIntExtra("VOICE_DURATION", -1))
+            putInt("VOICE_FREQUENCY", intent.getIntExtra("VOICE_FREQUENCY", -1))
+        }
+
         setContent {
 
             val app = application as MedicamentosApplication
@@ -42,8 +52,10 @@ class AddMedicationActivity : ComponentActivity() {
 
             MedicamentosTheme {
                 AddMedicationScreen(
+                    treatmentId = treatmentId,
+                    viewModel = viewModel,
                     onNavigateBack = { finish() },
-                    viewModel = viewModel
+                    voiceExtras = voiceExtras
                 )
             }
         }
@@ -96,13 +108,31 @@ fun NumberSelector(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddMedicationScreen(onNavigateBack: () -> Unit, viewModel: TreatmentViewModel) {
+fun AddMedicationScreen(
+    treatmentId: Int,
+    viewModel: TreatmentViewModel,
+    onNavigateBack: () -> Unit,
+    voiceExtras: Bundle?
+) {
     val context = LocalContext.current
 
-    var medicationName by remember { mutableStateOf("") }
-    var dosage by remember { mutableStateOf("") }
-    var durationDays by remember { mutableStateOf(7) }
-    var frequencyPerDay by remember { mutableStateOf(3) }
+    val isEditMode = treatmentId != -1
+
+    val treatmentToEdit by viewModel.treatmentToEdit.collectAsState()
+
+    var medicationName by remember { mutableStateOf(voiceExtras?.getString("VOICE_MEDICATION_NAME") ?: "") }
+    var dosage by remember { mutableStateOf(voiceExtras?.getString("VOICE_DOSAGE") ?: "") }
+    var durationDays by remember {
+        // Pega o valor do bundle. Se o bundle for nulo ou a chave não existir, o valor será -1.
+        val durationFromVoice = voiceExtras?.getInt("VOICE_DURATION", -1) ?: -1
+        // Se o valor for válido (diferente de -1), usa ele. Senão, usa o padrão 7.
+        mutableStateOf(if (durationFromVoice != -1) durationFromVoice else 7)
+    }
+    var frequencyPerDay by remember {
+        // Mesma lógica para a frequência
+        val frequencyFromVoice = voiceExtras?.getInt("VOICE_FREQUENCY", -1) ?: -1
+        mutableStateOf(if (frequencyFromVoice != -1) frequencyFromVoice else 3)
+    }
     var intervalHours by remember { mutableStateOf(8) }
 
     val currentTime = remember { Calendar.getInstance() }
@@ -115,30 +145,73 @@ fun AddMedicationScreen(onNavigateBack: () -> Unit, viewModel: TreatmentViewMode
         is24Hour = true
     )
 
-    val isFormValid = medicationName.isNotBlank() && dosage.isNotBlank()
+    LaunchedEffect(key1 = Unit) {
+        if (isEditMode) {
+            viewModel.loadTreatmentById(treatmentId)
+        }
+    }
 
+    // Efeito para atualizar os campos quando o tratamento for carregado
+    LaunchedEffect(key1 = treatmentToEdit) {
+        treatmentToEdit?.let { treatment ->
+            medicationName = treatment.medicationName
+            dosage = treatment.dosage
+            durationDays = treatment.durationInDays
+            frequencyPerDay = treatment.frequencyPerDay
+            intervalHours = treatment.intervalHours
+            timePickerState.hour = treatment.startHour
+            timePickerState.minute = treatment.startMinute
+        }
+    }
+
+    // Limpa o viewModel ao sair da tela
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearEditingTreatment()
+        }
+    }
+
+    val isFormValid = medicationName.isNotBlank() && dosage.isNotBlank()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Novo Medicamento", fontWeight = FontWeight.Bold) },
+                title = { Text(if (isEditMode) "Editar Medicamento" else "Novo Medicamento", fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Voltar") } },
                 actions = {
                     TextButton(
                         onClick = {
-                            val newTreatment = Treatment(
-                                medicationName = medicationName,
-                                dosage = dosage,
-                                startDate = Date(),
-                                durationInDays = durationDays,
-                                frequencyPerDay = frequencyPerDay,
-                                startHour = timePickerState.hour,
-                                startMinute = timePickerState.minute,
-                                intervalHours = intervalHours
-                            )
-                            viewModel.insertTreatment(newTreatment)
-
-                            Toast.makeText(context, "$medicationName salvo!", Toast.LENGTH_SHORT).show()
+                            if (isEditMode) {
+                                // Lógica de ATUALIZAR
+                                val updatedTreatment = treatmentToEdit!!.copy(
+                                    medicationName = medicationName,
+                                    dosage = dosage,
+                                    durationInDays = durationDays,
+                                    frequencyPerDay = frequencyPerDay,
+                                    startHour = timePickerState.hour,
+                                    startMinute = timePickerState.minute,
+                                    intervalHours = intervalHours
+                                )
+                                viewModel.updateTreatmentAndRescheduleDoses(updatedTreatment)
+                                Toast.makeText(context, "$medicationName atualizado!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val newTreatment = Treatment(
+                                    medicationName = medicationName,
+                                    dosage = dosage,
+                                    startDate = Date(),
+                                    durationInDays = durationDays,
+                                    frequencyPerDay = frequencyPerDay,
+                                    startHour = timePickerState.hour,
+                                    startMinute = timePickerState.minute,
+                                    intervalHours = intervalHours
+                                )
+                                viewModel.insertTreatment(newTreatment)
+                                Toast.makeText(
+                                    context,
+                                    "$medicationName salvo!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                             onNavigateBack()
                         },
                         enabled = isFormValid

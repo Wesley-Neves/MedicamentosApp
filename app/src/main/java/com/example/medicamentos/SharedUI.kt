@@ -1,5 +1,9 @@
 package com.example.medicamentos
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.height
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,10 +16,14 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -27,6 +35,7 @@ import com.example.medicamentos.data.MedicationDose
 import com.example.medicamentos.data.MedicationStatus
 import com.example.medicamentos.data.Treatment
 
+
 /**
  * Barra de navegação reutilizável para todo o app.
  */
@@ -37,9 +46,12 @@ fun AppBottomNavigationBar(
     onNavigateToSchedule: () -> Unit,
     onNavigateToProfile: () -> Unit
 ) {
-    NavigationBar(modifier = Modifier.height(96.dp)) {
+    NavigationBar(
+        modifier = Modifier
+            .navigationBarsPadding()
+    ) {
 
-        val iconSize = 40.dp
+        val iconSize = 32.dp
         val labelSize = 16.sp
 
         // Item "Hoje"
@@ -166,7 +178,10 @@ fun FormField(
     onValueChange: (String) -> Unit,
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    isError: Boolean = false,
+    errorMessage: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         Text(
@@ -182,7 +197,17 @@ fun FormField(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            enabled = enabled
+            enabled = enabled,
+            isError = isError,
+            visualTransformation = visualTransformation,
+            supportingText = {
+                if (isError && errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
         )
     }
 }
@@ -196,7 +221,8 @@ fun PasswordField(
     value: String,
     onValueChange: (String) -> Unit,
     isVisible: Boolean,
-    onVisibilityChange: () -> Unit
+    onVisibilityChange: () -> Unit,
+    isError: Boolean = false
 ) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         Text(
@@ -213,6 +239,15 @@ fun PasswordField(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (isVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            isError = isError,
+            supportingText = {
+                if (isError) {
+                    Text(
+                        text = "Email ou senha incorretos",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
             trailingIcon = {
                 IconButton(onClick = onVisibilityChange) {
                     Icon(
@@ -255,7 +290,10 @@ fun OrDivider() {
 
 //tratamento
 @Composable
-fun TreatmentCard(treatment: Treatment) {
+fun TreatmentCard(
+    treatment: Treatment,
+    onDelete: ((Treatment) -> Unit)? = null
+    ) {
     val progress = (treatment.daysCompleted.toFloat() / treatment.durationInDays).coerceIn(0f, 1f)
     val daysRemaining = (treatment.durationInDays - treatment.daysCompleted).coerceAtLeast(0)
     val isCompleted = daysRemaining == 0 || treatment.daysCompleted >= treatment.durationInDays
@@ -272,60 +310,125 @@ fun TreatmentCard(treatment: Treatment) {
         MaterialTheme.colorScheme.onSecondaryContainer
     }
 
+    var showOptionsDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    if (showOptionsDialog && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showOptionsDialog = false },
+            title = { Text(treatment.medicationName) },
+            text = { Text("O que você gostaria de fazer?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(treatment)
+                        showOptionsDialog = false
+                    }
+                ) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val intent = Intent(context, AddMedicationActivity::class.java)
+                    intent.putExtra("TREATMENT_ID", treatment.id) // Envia o ID
+                    context.startActivity(intent)
+                    showOptionsDialog = false
+                }) { Text("Editar") }
+            }
+        )
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Detalhes do Tratamento") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Medicamento: ${treatment.medicationName}")
+                    Text("Dosagem: ${treatment.dosage}")
+                    Text("Duração: ${treatment.durationInDays} dias")
+                    Text("Frequência: ${treatment.frequencyPerDay} vezes ao dia")
+                }
+            },
+            confirmButton = { TextButton(onClick = { showInfoDialog = false }) { Text("OK") } }
+        )
+    }
+
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .then(
+                if (onDelete != null) {
+                    Modifier.clickable { showOptionsDialog = true }
+                } else {
+                    Modifier
+                }
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
         // A borda não é mais necessária, pois o contraste virá das cores do container
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = treatment.medicationName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor // Usa a cor de conteúdo adaptável
-                )
-                if (isCompleted) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Tratamento Finalizado",
-                        tint = contentColor // Usa a cor de conteúdo adaptável
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = treatment.medicationName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor // Usa a cor de conteúdo adaptável
                     )
+                    if (isCompleted) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "Tratamento Finalizado",
+                            tint = contentColor // Usa a cor de conteúdo adaptável
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Tratamento de ${treatment.durationInDays} dias",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor.copy(alpha = 0.7f) // Usa a cor de conteúdo com transparência
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = contentColor, // Usa a cor de conteúdo adaptável
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val statusText =
+                    if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor, // Usa a cor de conteúdo adaptável
+                    fontWeight = FontWeight.Bold
+                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Tratamento de ${treatment.durationInDays} dias",
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor.copy(alpha = 0.7f) // Usa a cor de conteúdo com transparência
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = contentColor, // Usa a cor de conteúdo adaptável
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val statusText = if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor, // Usa a cor de conteúdo adaptável
-                fontWeight = FontWeight.Bold
-            )
+            IconButton(
+                onClick = { showInfoDialog = true },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = "Informações do tratamento",
+                    tint = contentColor.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }

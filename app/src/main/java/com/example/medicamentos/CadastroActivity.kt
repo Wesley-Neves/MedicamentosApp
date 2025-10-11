@@ -34,6 +34,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.ktx.firestore
 
+
 class CadastroActivity : ComponentActivity() {
 
     private lateinit var auth: FirebaseAuth
@@ -67,6 +68,7 @@ fun CadastroScreen(auth: FirebaseAuth) {
 
     var isGoogleLoading by remember { mutableStateOf(false) }
 
+    var isEmailInvalid by remember { mutableStateOf(false) }
 
     // --- LÓGICA DO GOOGLE ADICIONADA AQUI ---
 
@@ -82,55 +84,52 @@ fun CadastroScreen(auth: FirebaseAuth) {
     val googleAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        isGoogleLoading = false
         if (result.resultCode == Activity.RESULT_OK) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 val account = task.getResult(ApiException::class.java)!!
-                val email = account.email!!
+                val idToken = account.idToken!!
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
 
-                // --- MUDANÇA PRINCIPAL AQUI ---
-                // 1. Verifica se o e-mail já existe
-                auth.fetchSignInMethodsForEmail(email)
-                    .addOnCompleteListener(activity!!) { fetchTask ->
-                        if (fetchTask.isSuccessful) {
-                            val signInMethods = fetchTask.result?.signInMethods
-                            if (signInMethods.isNullOrEmpty()) {
-                                // O usuário NÃO existe. Prossegue com o cadastro.
-                                val idToken = account.idToken!!
-                                val credential = GoogleAuthProvider.getCredential(idToken, null)
-                                auth.signInWithCredential(credential)
-                                    .addOnCompleteListener { firebaseTask ->
-                                        isLoading = false
-                                        if (firebaseTask.isSuccessful) {
-                                            // Cadastro com Google bem-sucedido!
-                                            // Leva para a tela de completar o perfil.
-                                            val user = firebaseTask.result?.user
-                                            val intent = Intent(context, CompletarCadastroActivity::class.java)
-                                            intent.putExtra("USER_UID", user?.uid)
-                                            intent.putExtra("USER_NAME", user?.displayName ?: "Usuário do Google")
-                                            intent.putExtra("USER_EMAIL", user?.email ?: "")
-                                            context.startActivity(intent)
-                                        } else {
-                                            Toast.makeText(context, firebaseTask.exception?.message ?: "Falha no cadastro com Firebase.", Toast.LENGTH_LONG).show()
+                auth.signInWithCredential(credential)
+                    .addOnCompleteListener(activity!!) { authTask ->
+                        if (authTask.isSuccessful) {
+                            val user = authTask.result?.user!!
+                            val db = Firebase.firestore
+
+                            // PASSO 2: A verificação crucial - o perfil existe no Firestore?
+                            db.collection("users").document(user.uid).get()
+                                .addOnSuccessListener { document ->
+                                    if (document != null && document.exists()) {
+                                        // PERFIL EXISTE -> Login bem-sucedido, vai para a Home!
+                                        Toast.makeText(context, "Login bem-sucedido!", Toast.LENGTH_SHORT).show()
+                                        context.startActivity(Intent(context, HomeActivity::class.java))
+                                        activity.finish()
+                                    } else {
+                                        // PERFIL NÃO EXISTE -> Usuário é novo, vai para Completar Cadastro
+                                        val intent = Intent(context, CompletarCadastroActivity::class.java).apply {
+                                            putExtra("USER_UID", user.uid)
+                                            putExtra("USER_NAME", user.displayName ?: "Usuário do Google")
+                                            putExtra("USER_EMAIL", user.email ?: "")
                                         }
+                                        context.startActivity(intent)
+                                        activity.finish()
                                     }
-                            } else {
-                                // O usuário JÁ EXISTE.
-                                Toast.makeText(context, "Este e-mail já está em uso. Por favor, faça login.", Toast.LENGTH_LONG).show()
-                                isGoogleLoading = false
-                                googleSignInClient.signOut()
-                            }
+                                }
+                                .addOnFailureListener { e ->
+                                    // Erro ao se comunicar com o banco de dados
+                                    Toast.makeText(context, "Erro ao verificar perfil: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                         } else {
-                            isGoogleLoading = false
-                            Toast.makeText(context, "Erro ao verificar e-mail.", Toast.LENGTH_SHORT).show()
+                            // Falha na autenticação com o Firebase (problema de rede, etc.)
+                            Toast.makeText(context, authTask.exception?.message ?: "Falha no login com Firebase.", Toast.LENGTH_LONG).show()
                         }
                     }
             } catch (e: ApiException) {
-                isGoogleLoading = false
-                Toast.makeText(context, "Falha no cadastro com Google.", Toast.LENGTH_LONG).show()
+                // Falha na comunicação com os serviços do Google
+                Toast.makeText(context, "Falha na comunicação com o Google.", Toast.LENGTH_LONG).show()
             }
-        } else {
-            isGoogleLoading = false
         }
     }
     Surface(
@@ -163,9 +162,39 @@ fun CadastroScreen(auth: FirebaseAuth) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     FormField(label = "Nome Completo", value = nome, onValueChange = { nome = it })
-                    FormField(label = "Data de Nascimento", value = dataNascimento, onValueChange = { dataNascimento = it }, keyboardType = KeyboardType.Text)
-                    FormField(label = "Telefone", value = telefone, onValueChange = { telefone = it }, keyboardType = KeyboardType.Phone)
-                    FormField(label = "E-mail", value = email, onValueChange = { email = it }, keyboardType = KeyboardType.Email)
+                    FormField(
+                        label = "Data de Nascimento",
+                        value = dataNascimento,
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 8) {
+                            dataNascimento = it
+                            }
+                        },
+                        keyboardType = KeyboardType.Number,
+                        visualTransformation = DateVisualTransformation()
+                    )
+                    FormField(
+                        label = "Telefone",
+                        value = telefone,
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 11) {
+                                telefone = it
+                            }
+                        },
+                        keyboardType = KeyboardType.Number,
+                        visualTransformation = PhoneVisualTransformation()
+                    )
+                    FormField(
+                        label = "E-mail",
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            isEmailInvalid = !it.contains("@") || !it.contains(".")
+                        },
+                        keyboardType = KeyboardType.Email,
+                        isError = isEmailInvalid,
+                        errorMessage = "Formato de e-mail inválido"
+                    )
                     PasswordField(label = "Senha", value = senha, onValueChange = { senha = it }, isVisible = isSenhaVisible, onVisibilityChange = { isSenhaVisible = !isSenhaVisible })
                     PasswordField(label = "Confirmar Senha", value = confirmarSenha, onValueChange = { confirmarSenha = it }, isVisible = isConfirmarSenhaVisible, onVisibilityChange = { isConfirmarSenhaVisible = !isConfirmarSenhaVisible })
 

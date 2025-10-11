@@ -1,6 +1,7 @@
 package com.example.medicamentos
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -42,12 +43,32 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.auth.ktx.auth
 import androidx.activity.compose.rememberLauncherForActivityResult
+import com.google.firebase.firestore.ktx.firestore
 
 class MainActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
+
+        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val isInCaregiverMode = sharedPreferences.getBoolean("KEY_IS_CAREGIVER_MODE", false)
+
+        if (isInCaregiverMode) {
+            // Se está no modo cuidador, busca os dados salvos e pula para a tela do cuidador
+            val patientUid = sharedPreferences.getString("KEY_PATIENT_UID", null)
+            val patientName = sharedPreferences.getString("KEY_PATIENT_NAME", "Paciente")
+
+            if (patientUid != null) {
+                val intent = Intent(this, CaregiverHomeActivity::class.java).apply {
+                    putExtra("PATIENT_UID", patientUid)
+                    putExtra("PATIENT_NAME", patientName)
+                }
+                startActivity(intent)
+                finish() // Finaliza a MainActivity para que ela não fique na pilha
+                return   // Impede que o resto do código (setContent) seja executado
+            }
+        }
 
         // Pega a web client ID do arquivo de recursos gerado pelo google-services.json
         val webClientId = getString(R.string.default_web_client_id)
@@ -62,7 +83,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         val currentUser = auth.currentUser
-        if (currentUser != null) {
+
+        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val isInCaregiverMode = sharedPreferences.getBoolean("KEY_IS_CAREGIVER_MODE", false)
+
+        // Só redireciona para a HomeActivity se NÃO estiver no modo cuidador
+        if (currentUser != null && !isInCaregiverMode) {
             startActivity(Intent(this, HomeActivity::class.java))
             finish()
         }
@@ -80,6 +106,8 @@ fun LoginScreen(auth: FirebaseAuth, webClientId: String) {
     var selectedToggle by remember { mutableStateOf(ToggleState.LOGIN) }
     var isLoading by remember { mutableStateOf(false) }
     var isGoogleLoading by remember { mutableStateOf(false) }
+
+    var hasError by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -110,67 +138,47 @@ fun LoginScreen(auth: FirebaseAuth, webClientId: String) {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
                 val account = task.getResult(ApiException::class.java)!!
-                val email = account.email!!
+                val idToken = account.idToken!!
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
 
-                auth.fetchSignInMethodsForEmail(email)
-                    .addOnCompleteListener(activity!!) { fetchTask ->
-                        if (fetchTask.isSuccessful) {
-                            val signInMethods = fetchTask.result?.signInMethods
-                            if (signInMethods.isNullOrEmpty()) {
-                                // Se a lista estiver vazia, o usuário NÃO existe.
-                                Toast.makeText(
-                                    context,
-                                    "Nenhuma conta encontrada com este e-mail. Por favor, cadastre-se.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                isGoogleLoading = false
-                                googleSignInClient.signOut() // Desconecta para permitir nova tentativa
-                            } else {
-                                // O usuário EXISTE. Prossegue com o login.
-                                val idToken = account.idToken!!
-                                val credential = GoogleAuthProvider.getCredential(idToken, null)
-                                auth.signInWithCredential(credential)
-                                    .addOnCompleteListener { firebaseTask ->
-                                        isGoogleLoading = false
-                                        if (firebaseTask.isSuccessful) {
-                                            Toast.makeText(
-                                                context,
-                                                "Login com Google bem-sucedido!",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            context.startActivity(
-                                                Intent(
-                                                    context,
-                                                    HomeActivity::class.java
-                                                )
-                                            )
-                                            activity.finish()
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                firebaseTask.exception?.message
-                                                    ?: "Falha no login com Firebase.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
+                auth.signInWithCredential(credential)
+                    .addOnCompleteListener(activity!!) { authTask ->
+                        if (authTask.isSuccessful) {
+                            val user = authTask.result?.user!!
+                            val db = Firebase.firestore
+
+                            // PASSO 2: A verificação crucial - o perfil existe no Firestore?
+                            db.collection("users").document(user.uid).get()
+                                .addOnSuccessListener { document ->
+                                    if (document != null && document.exists()) {
+                                        // PERFIL EXISTE -> Login bem-sucedido, vai para a Home!
+                                        Toast.makeText(context, "Login bem-sucedido!", Toast.LENGTH_SHORT).show()
+                                        context.startActivity(Intent(context, HomeActivity::class.java))
+                                        activity.finish()
+                                    } else {
+                                        // PERFIL NÃO EXISTE -> Usuário é novo, vai para Completar Cadastro
+                                        val intent = Intent(context, CompletarCadastroActivity::class.java).apply {
+                                            putExtra("USER_UID", user.uid)
+                                            putExtra("USER_NAME", user.displayName ?: "Usuário do Google")
+                                            putExtra("USER_EMAIL", user.email ?: "")
                                         }
+                                        context.startActivity(intent)
+                                        activity.finish()
                                     }
-                            }
+                                }
+                                .addOnFailureListener { e ->
+                                    // Erro ao se comunicar com o banco de dados
+                                    Toast.makeText(context, "Erro ao verificar perfil: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                         } else {
-                            isGoogleLoading = false
-                            Toast.makeText(context, "Erro ao verificar e-mail.", Toast.LENGTH_SHORT)
-                                .show()
+                            // Falha na autenticação com o Firebase (problema de rede, etc.)
+                            Toast.makeText(context, authTask.exception?.message ?: "Falha no login com Firebase.", Toast.LENGTH_LONG).show()
                         }
                     }
             } catch (e: ApiException) {
-                isGoogleLoading = false
-                Toast.makeText(
-                    context,
-                    "Falha no login com Google. Verifique sua conexão.",
-                    Toast.LENGTH_LONG
-                ).show()
+                // Falha na comunicação com os serviços do Google
+                Toast.makeText(context, "Falha na comunicação com o Google.", Toast.LENGTH_LONG).show()
             }
-        } else {
-            isGoogleLoading = false
         }
     }
 
@@ -200,10 +208,29 @@ fun LoginScreen(auth: FirebaseAuth, webClientId: String) {
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                FormField(label = "E-mail", value = email, onValueChange = { email = it }, placeholder = "ex: seuemail@email.com", keyboardType = KeyboardType.Email)
+                FormField(
+                    label = "E-mail",
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        hasError = false // Limpa o erro assim que o usuário começa a corrigir
+                    },
+                    placeholder = "ex: seuemail@email.com",
+                    keyboardType = KeyboardType.Email,
+                    isError = hasError // Conecta o estado de erro ao componente
+                )
                 Spacer(modifier = Modifier.height(24.dp))
-                PasswordField(label = "Senha", value = password, onValueChange = { password = it }, isVisible = isPasswordVisible, onVisibilityChange = { isPasswordVisible = !isPasswordVisible })
-
+                PasswordField(
+                    label = "Senha",
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        hasError = false // Limpa o erro assim que o usuário começa a corrigir
+                    },
+                    isVisible = isPasswordVisible,
+                    onVisibilityChange = { isPasswordVisible = !isPasswordVisible },
+                    isError = hasError // Conecta o estado de erro ao componente
+                )
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
@@ -217,12 +244,14 @@ fun LoginScreen(auth: FirebaseAuth, webClientId: String) {
                             .addOnCompleteListener(activity!!) { task ->
                                 isLoading = false
                                 if (task.isSuccessful) {
+                                    hasError = false
                                     Toast.makeText(context, "Login bem-sucedido!", Toast.LENGTH_SHORT).show()
                                     context.startActivity(Intent(context, HomeActivity::class.java))
                                     activity.finish()
                                 } else {
-                                    val exception = task.exception?.message ?: "Falha na autenticação."
-                                    Toast.makeText(context, "Erro: $exception", Toast.LENGTH_LONG).show()
+                                    hasError = true
+                                    //val exception = task.exception?.message ?: "Falha na autenticação."
+                                    //Toast.makeText(context, "Erro: $exception", Toast.LENGTH_LONG).show()
                                 }
                             }
                     },

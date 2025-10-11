@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 
 // CORREÇÃO 1: Versão do banco atualizada (ex: para 4)
 // CORREÇÃO 2: Adicionada a anotação @TypeConverters
-@Database(entities = [Treatment::class, MedicationDose::class], version = 4, exportSchema = false)
+@Database(entities = [Treatment::class, MedicationDose::class], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 

@@ -12,6 +12,10 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+
     <application
         android:name=".data.MedicamentosApplication"
         android:allowBackup="true"
@@ -69,6 +73,12 @@
             </intent-filter>
         </activity>
         <activity android:name=".CuidadorScanActivity" />
+
+        <activity android:name=".ReportActivity" />
+
+        <receiver android:name=".data.AlarmReceiver" android:enabled="true" />
+        <receiver android:name=".data.NotificationActionReceiver" android:enabled="true" />
+
     </application>
 
 </manifest>

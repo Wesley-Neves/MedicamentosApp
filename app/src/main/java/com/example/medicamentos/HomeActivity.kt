@@ -1,7 +1,12 @@
 package com.example.medicamentos
 
 import android.Manifest
+import android.R.attr.elevation
+import android.R.attr.shape
 import android.app.Activity
+import android.app.AlarmManager
+import android.content.Context
+import android.provider.Settings
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -13,6 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.CheckboxDefaults.colors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,10 +47,21 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.activity.result.ActivityResultLauncher
+import kotlinx.coroutines.delay
+import java.util.concurrent.TimeUnit
 
 class HomeActivity : ComponentActivity() {
+
+    private lateinit var addMedicationLauncher: ActivityResultLauncher<Intent>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        addMedicationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+
+        }
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             val app = application as MedicamentosApplication
@@ -66,8 +84,22 @@ class HomeActivity : ComponentActivity() {
                 viewModel.startRealtimeSync() // Inicia sincronização em tempo real
             }
 
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    if (!alarmManager.canScheduleExactAlarms()) {
+                        // Envia o usuário para a tela de configurações para habilitar a permissão
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).also { intent ->
+                            startActivity(intent)
+                        }
+                    }
+                }
+            }
+
             MedicamentosTheme {
-                HomeScreen(viewModel = viewModel)
+                HomeScreen(
+                    viewModel = viewModel,
+                    addMedicationLauncher = addMedicationLauncher)
             }
         }
     }
@@ -79,14 +111,81 @@ class HomeActivity : ComponentActivity() {
 fun MedicationCard(
     medication: MedicationDose,
     onMedicationTaken: (MedicationDose) -> Unit,
-    onMedicationPostponed: (MedicationDose) -> Unit
+    onMedicationPostponed: (MedicationDose) -> Unit,
+    onDeleteDose: (MedicationDose) -> Unit
 ) {
+
+    var buttonsEnabled by remember { mutableStateOf(false) }
+
+    // 2. Efeito que roda continuamente para verificar a hora
+    LaunchedEffect(key1 = medication.id) {
+        while (true) {
+            try {
+                // Pega a hora agendada da dose
+                val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+                val scheduledTime = Calendar.getInstance().apply {
+                    val timeParts = medication.time.split(":")
+                    set(Calendar.HOUR_OF_DAY, timeParts[0].toInt())
+                    set(Calendar.MINUTE, timeParts[1].toInt())
+                    set(Calendar.SECOND, 0)
+                }
+
+                // Pega a hora atual
+                val currentTime = Calendar.getInstance()
+
+                // Calcula a diferença em minutos
+                val diffInMillis = scheduledTime.timeInMillis - currentTime.timeInMillis
+                val diffInMinutes = TimeUnit.MILLISECONDS.toMinutes(diffInMillis)
+
+                // 3. Define a regra: habilitar 10 minutos antes e até 4 horas depois
+                buttonsEnabled = diffInMinutes <= 10 && diffInMinutes > -240 // (de +10 min até -240 min)
+
+            } catch (e: Exception) {
+                // Em caso de erro de parsing de data, mantém os botões desabilitados
+                buttonsEnabled = false
+            }
+
+            // 4. Pausa por um minuto antes de verificar novamente
+            delay(60000) // 60000 milissegundos = 1 minuto
+        }
+    }
+
     val cardColor = if (medication.status == MedicationStatus.PENDING) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer
     val contentColor = if (medication.status == MedicationStatus.PENDING) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer
     val iconColor = if (medication.status == MedicationStatus.PENDING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer
 
+    var showOptionsDialog by remember { mutableStateOf(false) }
+
+    if (showOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showOptionsDialog = false },
+            title = { Text(medication.medicationName) },
+            text = { Text("Deseja excluir esta dose específica?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteDose(medication)
+                        showOptionsDialog = false
+                    }
+                ) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOptionsDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clickable {
+                // Só mostra o diálogo se o medicamento estiver pendente
+                if (medication.status == MedicationStatus.PENDING) {
+                    showOptionsDialog = true
+                }
+            },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (medication.status == MedicationStatus.PENDING) 1.dp else 0.dp)
@@ -118,13 +217,19 @@ fun MedicationCard(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { onMedicationPostponed(medication) }) {
+                    TextButton(
+                        onClick = { onMedicationPostponed(medication) },
+                        enabled = buttonsEnabled && medication.postponeCount < 2
+                    ) {
                         Icon(Icons.Default.Alarm, contentDescription = "Adiar", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Adiar 15 m", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 15.sp)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onMedicationTaken(medication) }, shape = RoundedCornerShape(16.dp)) {
+                    Button(
+                        onClick = { onMedicationTaken(medication) }, shape = RoundedCornerShape(16.dp),
+                        enabled = buttonsEnabled
+                    ) {
                         Icon(Icons.Default.Check, contentDescription = "Tomar", modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Tomar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -141,7 +246,8 @@ private fun processVoiceCommand(
     doses: List<MedicationDose>,
     onMedicationTaken: (MedicationDose) -> Unit,
     onMedicationPostponed: (MedicationDose) -> Unit,
-    context: android.content.Context
+    context: android.content.Context,
+    addMedicationLauncher: ActivityResultLauncher<Intent>
 ) {
     val lowerCaseCommand = command.lowercase(Locale.getDefault())
     var commandProcessed = false
@@ -163,6 +269,52 @@ private fun processVoiceCommand(
         }
     }
 
+    if (commandProcessed) return
+
+    // --- NOVA LÓGICA DE "ADICIONAR" ---
+    if (lowerCaseCommand.startsWith("adicionar") || lowerCaseCommand.startsWith("cadastrar")) {
+        // Remove a palavra-chave inicial para analisar o resto do comando
+        val details = lowerCaseCommand.removePrefix("adicionar ").removePrefix("cadastrar ")
+
+        // Expressões regulares para extrair as informações
+        val dosageRegex = "(\\d+)\\s*(mg|ml|gotas|comprimidos?)".toRegex()
+        val durationRegex = "(\\d+)\\s*dias?".toRegex()
+        val frequencyRegex = "(\\d+)\\s*vezes?".toRegex()
+
+        val dosageMatch = dosageRegex.find(details)
+        val durationMatch = durationRegex.find(details)
+        val frequencyMatch = frequencyRegex.find(details)
+
+        // Extrai os valores encontrados
+        val dosage = dosageMatch?.value ?: ""
+        val duration = durationMatch?.groupValues?.get(1)?.toIntOrNull() ?: 7 // Padrão de 7 dias
+        val frequency = frequencyMatch?.groupValues?.get(1)?.toIntOrNull() ?: 3 // Padrão de 3 vezes
+
+        // O que sobrar, consideramos como o nome do medicamento
+        val medicationName = details
+            .replace(dosageRegex, "")
+            .replace(durationRegex, "")
+            .replace(frequencyRegex, "")
+            .replace(" por ", "")
+            .replace(" ao dia", "")
+            .trim()
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+
+        // Cria o Intent para a AddMedicationActivity
+        val intent = Intent(context, AddMedicationActivity::class.java).apply {
+            // ✨ Envia os dados extraídos como extras ✨
+            putExtra("VOICE_MEDICATION_NAME", medicationName)
+            putExtra("VOICE_DOSAGE", dosage)
+            putExtra("VOICE_DURATION", duration)
+            putExtra("VOICE_FREQUENCY", frequency)
+        }
+
+        // Inicia a activity para confirmação do usuário
+        addMedicationLauncher.launch(intent)
+
+        commandProcessed = true
+    }
+
     if (!commandProcessed) {
         Toast.makeText(context, "Comando não reconhecido. Tente: 'Tomar [medicamento]' ou 'Adiar [medicamento]'", Toast.LENGTH_LONG).show()
     }
@@ -172,7 +324,7 @@ private fun processVoiceCommand(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: TreatmentViewModel) {
+fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityResultLauncher<Intent>) {
     val context = LocalContext.current
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val todayStr = sdf.format(Date())
@@ -181,27 +333,48 @@ fun HomeScreen(viewModel: TreatmentViewModel) {
     val medicationDoses by viewModel.getDosesForDate(todayStr).collectAsState(initial = emptyList())
 
     val onMedicationTaken: (MedicationDose) -> Unit = { doseToUpdate ->
-        viewModel.updateDose(doseToUpdate.copy(status = MedicationStatus.TAKEN))
+        viewModel.updateDose(
+            doseToUpdate.copy(
+                status = MedicationStatus.TAKEN,
+                takenTimestamp = System.currentTimeMillis()
+            )
+        )
         Toast.makeText(context, "${doseToUpdate.medicationName} confirmado!", Toast.LENGTH_SHORT).show()
     }
     val onMedicationPostponed: (MedicationDose) -> Unit = { doseToUpdate ->
-        Log.d("AdiarDebug", "ANTES - ID: ${doseToUpdate.id}, Horário: ${doseToUpdate.time}, Medicamento: ${doseToUpdate.medicationName}")
 
-        val calendar = Calendar.getInstance()
-        val timeSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-        calendar.time = timeSdf.parse(doseToUpdate.time) ?: Date()
-        calendar.add(Calendar.MINUTE, 15)
-        val newTime = timeSdf.format(calendar.time)
+        if (doseToUpdate.postponeCount < 2) {
+            Log.d(
+                "AdiarDebug",
+                "ANTES - ID: ${doseToUpdate.id}, Horário: ${doseToUpdate.time}, Medicamento: ${doseToUpdate.medicationName}"
+            )
 
-        Log.d("AdiarDebug", "DEPOIS - ID: ${doseToUpdate.id}, Novo Horário: $newTime, Medicamento: ${doseToUpdate.medicationName}")
+            val calendar = Calendar.getInstance()
+            val timeSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+            calendar.time = timeSdf.parse(doseToUpdate.time) ?: Date()
+            calendar.add(Calendar.MINUTE, 15)
+            val newTime = timeSdf.format(calendar.time)
 
-        val updatedDose = doseToUpdate.copy(
-            time = newTime,
-            status = MedicationStatus.PENDING
-        )
+            Log.d(
+                "AdiarDebug",
+                "DEPOIS - ID: ${doseToUpdate.id}, Novo Horário: $newTime, Medicamento: ${doseToUpdate.medicationName}"
+            )
 
-        viewModel.updateDose(updatedDose)
-        Toast.makeText(context, "${doseToUpdate.medicationName} adiado para $newTime!", Toast.LENGTH_SHORT).show()
+            val updatedDose = doseToUpdate.copy(
+                time = newTime,
+                status = MedicationStatus.PENDING,
+                postponeCount = doseToUpdate.postponeCount + 1
+            )
+
+            viewModel.updateDose(updatedDose)
+            Toast.makeText(
+                context,
+                "${doseToUpdate.medicationName} adiado para $newTime!",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            Toast.makeText(context, "Limite de adiamentos atingido para esta dose.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     val speechResultLauncher = rememberLauncherForActivityResult(
@@ -210,7 +383,15 @@ fun HomeScreen(viewModel: TreatmentViewModel) {
         if (result.resultCode == Activity.RESULT_OK) {
             val spokenText: ArrayList<String>? = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             if (!spokenText.isNullOrEmpty()) {
-                processVoiceCommand(spokenText[0], medicationDoses, onMedicationTaken, onMedicationPostponed, context)
+                processVoiceCommand(
+                    command = spokenText[0],
+                    doses = medicationDoses,
+                    onMedicationTaken = onMedicationTaken,
+                    onMedicationPostponed = onMedicationPostponed,
+                    context = context,
+                    addMedicationLauncher = addMedicationLauncher
+                )
+
             }
         }
     }
@@ -328,7 +509,8 @@ fun HomeScreen(viewModel: TreatmentViewModel) {
                             MedicationCard(
                                 medication = dose,
                                 onMedicationTaken = onMedicationTaken,
-                                onMedicationPostponed = onMedicationPostponed
+                                onMedicationPostponed = onMedicationPostponed,
+                                onDeleteDose = { viewModel.deleteDose(it) }
                             )
                         }
                     }
@@ -342,6 +524,6 @@ fun HomeScreen(viewModel: TreatmentViewModel) {
 @Composable
 fun DefaultPreview() {
     MedicamentosTheme {
-        HomeScreen(viewModel = viewModel())
+
     }
 }
