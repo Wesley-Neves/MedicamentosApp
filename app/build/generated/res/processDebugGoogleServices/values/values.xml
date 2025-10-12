@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="default_web_client_id" translatable="false">459897058195-rl7ml9qq92trd1g9njmko2rgu5vttmif.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">459897058195</string>
+    <string name="google_api_key" translatable="false">AIzaSyBTj6XvuCOqw3WOHzWHu4kQhbvtEMt9lOE</string>
+    <string name="google_app_id" translatable="false">1:459897058195:android:857521a1aa07cc6721ae66</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBTj6XvuCOqw3WOHzWHu4kQhbvtEMt9lOE</string>
+    <string name="google_storage_bucket" translatable="false">medicamentosapp-afd4b.firebasestorage.app</string>
+    <string name="project_id" translatable="false">medicamentosapp-afd4b</string>
+</resources>

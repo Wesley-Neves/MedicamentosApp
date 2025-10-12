@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Base.Theme.Medicamentos" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/md_blue_primaryContainer</item>
+        <item name="colorOnPrimary">@color/md_blue_onPrimaryContainer</item>
+        <item name="colorPrimaryContainer">@color/md_blue_primary</item>
+        <item name="colorOnPrimaryContainer">@color/md_blue_primaryContainer</item>
+        <item name="colorSecondaryContainer">#334A60</item> <item name="colorOnSecondaryContainer">#DCEFFD</item>
+
+        <item name="android:colorBackground">@color/md_dark_background</item>
+        <item name="colorSurface">@color/md_dark_surface</item>
+        <item name="colorOnSurface">@color/md_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_dark_onSurfaceVariant</item>
+
+        <item name="toggleBackgroundColor">@color/md_dark_surfaceVariant</item>
+        <item name="toggleTextColorInactive">@color/md_dark_onSurface</item>
+    </style>
+    <style name="Theme.Medicamentos" parent="Base.Theme.Medicamentos"/>
+</resources>

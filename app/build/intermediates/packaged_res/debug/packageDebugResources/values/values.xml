@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr format="color" name="toggleBackgroundColor"/>
+    <attr format="color" name="toggleTextColorInactive"/>
+    <color name="ic_launcher_background">#FCFFFD</color>
+    <color name="md_blue_onPrimary">#FFFFFF</color>
+    <color name="md_blue_onPrimaryContainer">#001D33</color>
+    <color name="md_blue_onSecondaryContainer">#0E1E28</color>
+    <color name="md_blue_primary">#00639B</color>
+    <color name="md_blue_primaryContainer">#CDE5FF</color>
+    <color name="md_blue_secondaryContainer">#DCEFFD</color>
+    <color name="md_dark_background">#1A1C1E</color>
+    <color name="md_dark_onSurface">#E3E2E6</color>
+    <color name="md_dark_onSurfaceVariant">#C4C6D0</color>
+    <color name="md_dark_surface">#1A1C1E</color>
+    <color name="md_dark_surfaceVariant">#44474E</color>
+    <color name="md_light_background">#FCFCFF</color>
+    <color name="md_light_onSurface">#1A1C1E</color>
+    <color name="md_light_onSurfaceVariant">#44474E</color>
+    <color name="md_light_surface">#FCFCFF</color>
+    <color name="md_light_surfaceVariant">#E0E2EC</color>
+    <color name="status_green_completed">#386A1F</color>
+    <color name="status_green_completed_container">#B9F397</color>
+    <color name="status_green_container">#E8F5E9</color>
+    <color name="status_green_container_night">#2E4B27</color>
+    <color name="status_green_on_container">#1B5E20</color>
+    <color name="status_green_on_container_night">#B9F397</color>
+    <string name="app_name">MedAgenda</string>
+    <string name="default_web_client_id" translatable="false">459897058195-rl7ml9qq92trd1g9njmko2rgu5vttmif.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">459897058195</string>
+    <string name="google_api_key" translatable="false">AIzaSyBTj6XvuCOqw3WOHzWHu4kQhbvtEMt9lOE</string>
+    <string name="google_app_id" translatable="false">1:459897058195:android:857521a1aa07cc6721ae66</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBTj6XvuCOqw3WOHzWHu4kQhbvtEMt9lOE</string>
+    <string name="google_storage_bucket" translatable="false">medicamentosapp-afd4b.firebasestorage.app</string>
+    <string name="project_id" translatable="false">medicamentosapp-afd4b</string>
+    <string name="title_activity_add_medication">AddMedicationActivity</string>
+    <string name="title_activity_caregiver_home">CaregiverHomeActivity</string>
+    <string name="title_activity_caregiver_schedule">CaregiverScheduleActivity</string>
+    <string name="title_activity_home">HomeActivity</string>
+    <string name="title_activity_profile">ProfileActivity</string>
+    <string name="title_activity_schedule">ScheduleActivity</string>
+    <style name="Base.Theme.Medicamentos" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/md_blue_primary</item>
+        <item name="colorOnPrimary">@color/md_blue_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_blue_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_blue_onPrimaryContainer</item>
+        <item name="colorSecondaryContainer">@color/md_blue_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_blue_onSecondaryContainer</item>
+
+        <item name="android:colorBackground">@color/md_light_background</item>
+        <item name="colorSurface">@color/md_light_surface</item>
+        <item name="colorOnSurface">@color/md_light_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_light_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_light_onSurfaceVariant</item>
+
+        <item name="toggleBackgroundColor">@color/md_light_surfaceVariant</item>
+        <item name="toggleTextColorInactive">@color/md_blue_primary</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <style name="Theme.Medicamentos" parent="Base.Theme.Medicamentos"/>
+</resources>

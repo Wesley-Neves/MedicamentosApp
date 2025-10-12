@@ -104,7 +104,7 @@ fun NumberSelector(
     }
 }
 
-// ----- TELA PRINCIPAL DE CADASTRO -----
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
