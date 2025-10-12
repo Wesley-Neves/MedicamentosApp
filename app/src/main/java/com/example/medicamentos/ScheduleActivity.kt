@@ -163,7 +163,9 @@ fun ScheduleScreen(
 }
 
 // ----- PREVIEW FUNCIONAL -----
-@Preview(showBackground = true)
+@Preview(showBack
+
+        ground = true)
 @Composable
 fun ScheduleScreenPreview() {
     val mockTreatments = listOf(
