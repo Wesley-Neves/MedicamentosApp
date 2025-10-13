@@ -189,6 +189,7 @@ fun DoseHistoryItem(dose: MedicationDose) {
 
     // --- LÓGICA PARA CALCULAR O ATRASO ---
     var atrasoInfo: String? = null
+
     if (dose.status == MedicationStatus.TAKEN && dose.takenTimestamp != null) {
         try {
             // Converte a data e hora agendada para um timestamp
@@ -199,8 +200,17 @@ fun DoseHistoryItem(dose: MedicationDose) {
             val diffInMillis = dose.takenTimestamp!! - scheduledTime
             val diffInMinutes = TimeUnit.MILLISECONDS.toMinutes(diffInMillis)
 
-            if (diffInMinutes > 5) { // Consideramos um atraso se for maior que 5 minutos
-                atrasoInfo = "Tomado com ${diffInMinutes}min de atraso"
+            if (diffInMinutes > 5) {
+                if (diffInMinutes <= 60) {
+                    // Se for até 60 minutos, mostra em minutos
+                    atrasoInfo = "Tomado com ${diffInMinutes}min de atraso"
+                } else {
+                    // Se for mais de 60 minutos, calcula horas e minutos
+                    val hours = diffInMinutes / 60
+                    val minutes = diffInMinutes % 60
+                    // O formato "%02d" garante o zero à esquerda (ex: 02, 09)
+                    atrasoInfo = "Tomado com ${hours}:${String.format("%02d", minutes)}h de atraso"
+                }
             }
         } catch (e: Exception) {
             // Ignora erros de parsing de data
@@ -226,7 +236,14 @@ fun DoseHistoryItem(dose: MedicationDose) {
                     )
                 }
             }
-            Text(dose.status.name, color = statusColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+
+            val statusText = when (dose.status) {
+                MedicationStatus.TAKEN -> "Tomada"
+                MedicationStatus.MISSED -> "Esquecida"
+                else -> dose.status.name // Um fallback, caso apareça outro status
+            }
+
+            Text(statusText, color = statusColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
         }
     }
 }

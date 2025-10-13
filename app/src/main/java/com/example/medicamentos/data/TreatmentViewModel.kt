@@ -5,16 +5,16 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.work.*
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -207,6 +207,12 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
                 }
         }
 
+        if (updatedDose.status == MedicationStatus.TAKEN) {
+            // Usamos o 'application' context que o ViewModel já possui.
+            AlarmScheduler.cancel(application.applicationContext, updatedDose)
+            Log.d("AlarmCancellation", "Alarme para a dose ${updatedDose.id} cancelado após confirmação no app.")
+        }
+
         checkIfTreatmentDayIsComplete(updatedDose)
     }
 
@@ -269,7 +275,7 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
                                     Log.d("SyncDebug", "Tratamento novo: ${treatment.medicationName}")
 
                                     // Pequeno delay para garantir que a sincronização de doses terminou
-                                    kotlinx.coroutines.delay(500)
+                                    delay(500)
                                     generateAndSaveDoses(listOf(treatment), userId)
                                 }
                             }
@@ -464,7 +470,7 @@ class TreatmentViewModel(private val dao: TreatmentDao, private val application:
 
                 snapshot?.documentChanges?.forEach { change ->
                     when (change.type) {
-                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> {
+                        DocumentChange.Type.MODIFIED -> {
                             val updatedDose = change.document.toObject(MedicationDose::class.java)
                             viewModelScope.launch {
                                 dao.updateDose(updatedDose)

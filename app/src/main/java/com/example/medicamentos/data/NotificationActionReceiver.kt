@@ -47,8 +47,14 @@ class NotificationActionReceiver : BroadcastReceiver() {
                         val dose = dao.getDoseById(doseId)
                         if (dose != null) {
                             // 1. Atualiza localmente
-                            val updatedDose = dose.copy(status = MedicationStatus.TAKEN)
+                            val updatedDose = dose.copy(
+                                status = MedicationStatus.TAKEN,
+                                takenTimestamp = System.currentTimeMillis()
+                            )
                             dao.updateDose(updatedDose)
+
+                            AlarmScheduler.cancel(context, updatedDose)
+                            Log.d("NotificationAction", "Alarme para a dose $doseId cancelado após confirmação na notificação.")
 
                             // 2. Atualiza no Firestore
                             val doseDocId = "${dose.treatmentId}_${dose.date}_${dose.time}_${dose.medicationName.hashCode()}"
