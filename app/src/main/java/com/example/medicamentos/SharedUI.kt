@@ -3,7 +3,6 @@ package com.example.medicamentos
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -368,66 +367,74 @@ fun TreatmentCard(
             ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
-        // A borda não é mais necessária, pois o contraste virá das cores do container
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = treatment.medicationName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = contentColor // Usa a cor de conteúdo adaptável
-                    )
-                    if (isCompleted) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = "Tratamento Finalizado",
-                            tint = contentColor // Usa a cor de conteúdo adaptável
-                        )
-                    }
-                }
+            // Coluna principal com as informações do tratamento
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = treatment.medicationName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor,
+                    modifier = Modifier.padding(end = 40.dp) // Adiciona um padding para não ficar sob os ícones
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "Tratamento de ${treatment.durationInDays} dias",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor.copy(alpha = 0.7f) // Usa a cor de conteúdo com transparência
+                    color = contentColor.copy(alpha = 0.7f)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-
+                val progress = (treatment.daysCompleted.toFloat() / treatment.durationInDays).coerceIn(0f, 1f)
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp)),
-                    color = contentColor, // Usa a cor de conteúdo adaptável
+                    color = contentColor,
                     trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
-                val statusText =
-                    if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
+                val daysRemaining = (treatment.durationInDays - treatment.daysCompleted).coerceAtLeast(0)
+                val statusText = if (isCompleted) "Tratamento finalizado!" else "Faltam $daysRemaining dias"
                 Text(
                     text = statusText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = contentColor, // Usa a cor de conteúdo adaptável
+                    color = contentColor,
                     fontWeight = FontWeight.Bold
                 )
             }
-            IconButton(
-                onClick = { showInfoDialog = true },
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+
+             Column(
+                modifier = Modifier.align(Alignment.TopEnd), // Alinha a Coluna inteira no canto
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    Icons.Default.Info,
-                    contentDescription = "Informações do tratamento",
-                    tint = contentColor.copy(alpha = 0.7f)
-                )
+                // Ícone de Informação
+                IconButton(
+                    onClick = { showInfoDialog = true },
+                    modifier = Modifier.padding(top = 8.dp, end = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Informações do tratamento",
+                        tint = contentColor.copy(alpha = 0.7f)
+                    )
+                }
+
+                // Ícone de Check (só aparece se o tratamento estiver completo)
+                if (isCompleted) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Tratamento Finalizado",
+                        tint = contentColor,
+                        modifier = Modifier.padding(end = 8.dp) // Adiciona padding para alinhar com o de cima
+                    )
+                }
             }
         }
     }

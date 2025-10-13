@@ -1,10 +1,8 @@
 package com.example.medicamentos
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
@@ -13,11 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,8 +22,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -51,7 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
 
-        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val sharedPreferences = getSharedPreferences("AppPreferences", MODE_PRIVATE)
         val isInCaregiverMode = sharedPreferences.getBoolean("KEY_IS_CAREGIVER_MODE", false)
 
         if (isInCaregiverMode) {
@@ -84,7 +76,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         val currentUser = auth.currentUser
 
-        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val sharedPreferences = getSharedPreferences("AppPreferences", MODE_PRIVATE)
         val isInCaregiverMode = sharedPreferences.getBoolean("KEY_IS_CAREGIVER_MODE", false)
 
         // Só redireciona para a HomeActivity se NÃO estiver no modo cuidador

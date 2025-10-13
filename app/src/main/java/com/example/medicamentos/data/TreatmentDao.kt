@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 interface TreatmentDao {
 
     // --- Funções de Tratamento ---
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.Companion.REPLACE)
     suspend fun insertTreatment(treatment: Treatment): Long
 
     @Query("SELECT * FROM treatments ORDER BY startDate DESC")
@@ -26,7 +26,7 @@ interface TreatmentDao {
     suspend fun getTreatmentById(id: Int): Treatment?
 
     // --- Funções de Doses Diárias ---
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.Companion.IGNORE)
     suspend fun insertDose(dose: MedicationDose): Long
 
     @Update

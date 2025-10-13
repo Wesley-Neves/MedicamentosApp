@@ -3,6 +3,7 @@ package com.example.medicamentos.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
+import com.example.medicamentos.data.Converters
 import java.util.Date
 
 @Entity(tableName = "treatments")

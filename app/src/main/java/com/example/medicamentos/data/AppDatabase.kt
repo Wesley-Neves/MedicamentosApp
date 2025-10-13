@@ -1,11 +1,12 @@
 package com.example.medicamentos.data
 
-
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.medicamentos.data.Converters
+import com.example.medicamentos.data.TreatmentDao
 
 // CORREÇÃO 1: Versão do banco atualizada (ex: para 4)
 // CORREÇÃO 2: Adicionada a anotação @TypeConverters

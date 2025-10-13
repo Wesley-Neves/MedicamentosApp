@@ -167,7 +167,7 @@ fun CadastroScreen(auth: FirebaseAuth) {
                         value = dataNascimento,
                         onValueChange = {
                             if (it.all { char -> char.isDigit() } && it.length <= 8) {
-                            dataNascimento = it
+                                dataNascimento = it
                             }
                         },
                         keyboardType = KeyboardType.Number,
@@ -195,8 +195,18 @@ fun CadastroScreen(auth: FirebaseAuth) {
                         isError = isEmailInvalid,
                         errorMessage = "Formato de e-mail inválido"
                     )
-                    PasswordField(label = "Senha", value = senha, onValueChange = { senha = it }, isVisible = isSenhaVisible, onVisibilityChange = { isSenhaVisible = !isSenhaVisible })
-                    PasswordField(label = "Confirmar Senha", value = confirmarSenha, onValueChange = { confirmarSenha = it }, isVisible = isConfirmarSenhaVisible, onVisibilityChange = { isConfirmarSenhaVisible = !isConfirmarSenhaVisible })
+                    PasswordField(
+                        label = "Senha",
+                        value = senha,
+                        onValueChange = { senha = it },
+                        isVisible = isSenhaVisible,
+                        onVisibilityChange = { isSenhaVisible = !isSenhaVisible })
+                    PasswordField(
+                        label = "Confirmar Senha",
+                        value = confirmarSenha,
+                        onValueChange = { confirmarSenha = it },
+                        isVisible = isConfirmarSenhaVisible,
+                        onVisibilityChange = { isConfirmarSenhaVisible = !isConfirmarSenhaVisible })
 
                     Spacer(modifier = Modifier.height(16.dp))
 

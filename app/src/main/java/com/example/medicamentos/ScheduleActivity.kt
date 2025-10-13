@@ -1,5 +1,6 @@
 package com.example.medicamentos
 
+import androidx.compose.material3.TopAppBarDefaults
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,8 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,13 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
+import com.example.medicamentos.ui.theme.MedicamentosTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.example.medicamentos.data.MedicamentosApplication
-import com.example.medicamentos.data.Treatment
 import com.example.medicamentos.data.TreatmentViewModel
 import com.example.medicamentos.data.TreatmentViewModelFactory
-import com.example.medicamentos.ui.theme.MedicamentosTheme
+import androidx.core.view.WindowCompat
+import com.example.medicamentos.data.Treatment
+
 
 class ScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -163,9 +165,7 @@ fun ScheduleScreen(
 }
 
 // ----- PREVIEW FUNCIONAL -----
-@Preview(showBack
-
-        ground = true)
+@Preview(showBackground = true)
 @Composable
 fun ScheduleScreenPreview() {
     val mockTreatments = listOf(

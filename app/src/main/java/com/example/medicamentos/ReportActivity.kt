@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HelpOutline
@@ -27,6 +26,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.medicamentos.data.*
+import com.example.medicamentos.data.TreatmentDao
+import com.example.medicamentos.data.MedicationDose
+import com.example.medicamentos.data.MedicationStatus
 import com.example.medicamentos.ui.theme.MedicamentosTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted

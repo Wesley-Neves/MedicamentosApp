@@ -1,8 +1,6 @@
 package com.example.medicamentos
 
 import android.Manifest
-import android.R.attr.elevation
-import android.R.attr.shape
 import android.app.Activity
 import android.app.AlarmManager
 import android.content.Context
@@ -27,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.CheckboxDefaults.colors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +45,10 @@ import com.google.firebase.ktx.Firebase
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.activity.result.ActivityResultLauncher
+import com.example.medicamentos.data.MedicationDose
+import com.example.medicamentos.data.MedicationStatus
+import com.example.medicamentos.data.TreatmentViewModel
+import com.example.medicamentos.data.TreatmentViewModelFactory
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
@@ -86,7 +87,7 @@ class HomeActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
                     if (!alarmManager.canScheduleExactAlarms()) {
                         // Envia o usuário para a tela de configurações para habilitar a permissão
                         Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).also { intent ->
@@ -243,88 +244,107 @@ fun MedicationCard(
 // Função para processar o comando de voz recebido
 private fun processVoiceCommand(
     command: String,
+    currentStep: VoiceConversationStep,
+    onStepChange: (VoiceConversationStep) -> Unit,
+    medicationData: MutableMap<String, String>,
+    // Parâmetros antigos
     doses: List<MedicationDose>,
     onMedicationTaken: (MedicationDose) -> Unit,
     onMedicationPostponed: (MedicationDose) -> Unit,
-    context: android.content.Context,
+    context: Context,
     addMedicationLauncher: ActivityResultLauncher<Intent>
 ) {
     val lowerCaseCommand = command.lowercase(Locale.getDefault())
-    var commandProcessed = false
 
+    // Se estamos no meio de uma conversa, o comando tem prioridade
+    if (currentStep != VoiceConversationStep.IDLE) {
+        when (currentStep) {
+            VoiceConversationStep.ASKING_NAME -> {
+                medicationData["name"] = command.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+                onStepChange(VoiceConversationStep.ASKING_DOSAGE) // Próximo passo
+            }
+            VoiceConversationStep.ASKING_DOSAGE -> {
+                medicationData["dosage"] = lowerCaseCommand
+                onStepChange(VoiceConversationStep.ASKING_DURATION) // Próximo passo
+            }
+            VoiceConversationStep.ASKING_DURATION -> {
+                // Tenta extrair apenas o número
+                val duration = lowerCaseCommand.filter { it.isDigit() }
+                medicationData["duration"] = duration
+                onStepChange(VoiceConversationStep.ASKING_FREQUENCY) // Próximo passo
+            }
+            VoiceConversationStep.ASKING_FREQUENCY -> {
+                val frequency = lowerCaseCommand.filter { it.isDigit() }
+                medicationData["frequency"] = frequency
+
+                // --- FIM DA CONVERSA ---
+                Toast.makeText(context, "Ok, revise as informações e salve.", Toast.LENGTH_LONG).show()
+
+                // Abre a AddMedicationActivity com todos os dados coletados
+                val intent = Intent(context, AddMedicationActivity::class.java).apply {
+                    putExtra("VOICE_MEDICATION_NAME", medicationData["name"] ?: "")
+                    putExtra("VOICE_DOSAGE", medicationData["dosage"] ?: "")
+                    putExtra("VOICE_DURATION", medicationData["duration"]?.toIntOrNull() ?: 7)
+                    putExtra("VOICE_FREQUENCY", medicationData["frequency"]?.toIntOrNull() ?: 3)
+                }
+                addMedicationLauncher.launch(intent)
+
+                // Reseta o estado da conversa
+                medicationData.clear()
+                onStepChange(VoiceConversationStep.IDLE)
+            }
+            else -> { // Caso IDLE, que não deveria acontecer aqui
+                onStepChange(VoiceConversationStep.IDLE)
+            }
+        }
+        return // Sai da função para não processar os comandos antigos
+    }
+
+    // --- LÓGICA ANTIGA (SE NENHUMA CONVERSA ESTIVER ATIVA) ---
+
+    // 1. Checa se o comando é para iniciar a conversa de cadastro
+    if (lowerCaseCommand.startsWith("adicionar") || lowerCaseCommand.startsWith("cadastrar")) {
+        onStepChange(VoiceConversationStep.ASKING_NAME)
+        return
+    }
+
+    // 2. Checa os comandos de "Tomar" e "Adiar"
     for (medication in doses.filter { it.status == MedicationStatus.PENDING }) {
         if (lowerCaseCommand.contains(medication.medicationName.lowercase(Locale.getDefault()))) {
             when {
                 lowerCaseCommand.contains("confirmar") || lowerCaseCommand.contains("já tomei") || lowerCaseCommand.contains("tomar") -> {
                     onMedicationTaken(medication)
-                    commandProcessed = true
-                    break
+                    return
                 }
-                lowerCaseCommand.contains("adiar") || lowerCaseCommand.contains("adiar") -> {
+                lowerCaseCommand.contains("adiar") -> {
                     onMedicationPostponed(medication)
-                    commandProcessed = true
-                    break
+                    return
                 }
             }
         }
     }
 
-    if (commandProcessed) return
+    // 3. Se nada foi reconhecido
+    Toast.makeText(context, "Comando não reconhecido.", Toast.LENGTH_LONG).show()
+}
 
-    // --- NOVA LÓGICA DE "ADICIONAR" ---
-    if (lowerCaseCommand.startsWith("adicionar") || lowerCaseCommand.startsWith("cadastrar")) {
-        // Remove a palavra-chave inicial para analisar o resto do comando
-        val details = lowerCaseCommand.removePrefix("adicionar ").removePrefix("cadastrar ")
 
-        // Expressões regulares para extrair as informações
-        val dosageRegex = "(\\d+)\\s*(mg|ml|gotas|comprimidos?)".toRegex()
-        val durationRegex = "(\\d+)\\s*dias?".toRegex()
-        val frequencyRegex = "(\\d+)\\s*vezes?".toRegex()
-
-        val dosageMatch = dosageRegex.find(details)
-        val durationMatch = durationRegex.find(details)
-        val frequencyMatch = frequencyRegex.find(details)
-
-        // Extrai os valores encontrados
-        val dosage = dosageMatch?.value ?: ""
-        val duration = durationMatch?.groupValues?.get(1)?.toIntOrNull() ?: 7 // Padrão de 7 dias
-        val frequency = frequencyMatch?.groupValues?.get(1)?.toIntOrNull() ?: 3 // Padrão de 3 vezes
-
-        // O que sobrar, consideramos como o nome do medicamento
-        val medicationName = details
-            .replace(dosageRegex, "")
-            .replace(durationRegex, "")
-            .replace(frequencyRegex, "")
-            .replace(" por ", "")
-            .replace(" ao dia", "")
-            .trim()
-            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-
-        // Cria o Intent para a AddMedicationActivity
-        val intent = Intent(context, AddMedicationActivity::class.java).apply {
-            // ✨ Envia os dados extraídos como extras ✨
-            putExtra("VOICE_MEDICATION_NAME", medicationName)
-            putExtra("VOICE_DOSAGE", dosage)
-            putExtra("VOICE_DURATION", duration)
-            putExtra("VOICE_FREQUENCY", frequency)
-        }
-
-        // Inicia a activity para confirmação do usuário
-        addMedicationLauncher.launch(intent)
-
-        commandProcessed = true
-    }
-
-    if (!commandProcessed) {
-        Toast.makeText(context, "Comando não reconhecido. Tente: 'Tomar [medicamento]' ou 'Adiar [medicamento]'", Toast.LENGTH_LONG).show()
-    }
+enum class VoiceConversationStep {
+    IDLE, // Nenhuma conversa ativa
+    ASKING_NAME,
+    ASKING_DOSAGE,
+    ASKING_DURATION,
+    ASKING_FREQUENCY
 }
 
 // ----- TELA PRINCIPAL -----
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityResultLauncher<Intent>) {
+fun HomeScreen(
+    viewModel: TreatmentViewModel,
+    addMedicationLauncher: ActivityResultLauncher<Intent>
+) {
     val context = LocalContext.current
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val todayStr = sdf.format(Date())
@@ -377,6 +397,49 @@ fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityRes
         }
     }
 
+    var showVoiceHelpDialog by remember { mutableStateOf(false) }
+
+    if (showVoiceHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showVoiceHelpDialog = false },
+            // Ícone e Título
+            icon = { Icon(Icons.Default.HelpOutline, contentDescription = "Ajuda") },
+            title = { Text(text = "Comandos de Voz Disponíveis") },
+            // Corpo com a lista de comandos
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Comando para Adicionar
+                    Column {
+                        Text("Para adicionar um medicamento:", style = MaterialTheme.typography.titleMedium)
+                        Text("Diga: \"Adicionar [nome] [dosagem] por [duração] [frequência]\"", style = MaterialTheme.typography.bodyMedium)
+                        Text("Ex: \"Adicionar Paracetamol 500mg por 7 dias 3 vezes ao dia\"", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    // Comando para Confirmar
+                    Column {
+                        Text("Para confirmar uma dose:", style = MaterialTheme.typography.titleMedium)
+                        Text("Diga: \"Tomar [nome do remédio]\"", style = MaterialTheme.typography.bodyMedium)
+                        Text("Ex: \"Tomar Paracetamol\"", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                    // Comando para Adiar
+                    Column {
+                        Text("Para adiar uma dose:", style = MaterialTheme.typography.titleMedium)
+                        Text("Diga: \"Adiar [nome do remédio]\"", style = MaterialTheme.typography.bodyMedium)
+                        Text("Ex: \"Adiar Paracetamol\"", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                }
+            },
+            // Botão para fechar
+            confirmButton = {
+                TextButton(onClick = { showVoiceHelpDialog = false }) {
+                    Text("Entendi")
+                }
+            }
+        )
+    }
+    var conversationStep by remember { mutableStateOf(VoiceConversationStep.IDLE) }
+    val medicationData = remember { mutableStateMapOf<String, String>() }
+    var voicePromptMessage by remember { mutableStateOf("Fale o comando...") }
+
     val speechResultLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -385,13 +448,52 @@ fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityRes
             if (!spokenText.isNullOrEmpty()) {
                 processVoiceCommand(
                     command = spokenText[0],
+                    currentStep = conversationStep,
+                    onStepChange = { newStep -> conversationStep = newStep },
+                    medicationData = medicationData,
                     doses = medicationDoses,
                     onMedicationTaken = onMedicationTaken,
                     onMedicationPostponed = onMedicationPostponed,
                     context = context,
                     addMedicationLauncher = addMedicationLauncher
                 )
+            } else {
+                conversationStep = VoiceConversationStep.IDLE
+            }
+        } else {
+            conversationStep = VoiceConversationStep.IDLE
+        }
+    }
 
+    fun launchSpeechRecognizer(prompt: String) {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+        }
+        speechResultLauncher.launch(intent)
+    }
+
+    LaunchedEffect(conversationStep) {
+        when (conversationStep) {
+            VoiceConversationStep.IDLE -> {
+                voicePromptMessage = "Fale o comando..."
+            }
+            VoiceConversationStep.ASKING_NAME -> {
+                voicePromptMessage = "Qual o nome do medicamento?"
+                launchSpeechRecognizer(voicePromptMessage)
+            }
+            VoiceConversationStep.ASKING_DOSAGE -> {
+                voicePromptMessage = "Qual a dosagem? Por exemplo, 500mg ou 1 comprimido."
+                launchSpeechRecognizer(voicePromptMessage)
+            }
+            VoiceConversationStep.ASKING_DURATION -> {
+                voicePromptMessage = "Durante quantos dias?"
+                launchSpeechRecognizer(voicePromptMessage)
+            }
+            VoiceConversationStep.ASKING_FREQUENCY -> {
+                voicePromptMessage = "Quantas vezes ao dia?"
+                launchSpeechRecognizer(voicePromptMessage)
             }
         }
     }
@@ -433,8 +535,22 @@ fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityRes
             AppBottomNavigationBar(
                 currentScreen = "Hoje",
                 onNavigateToHome = {},
-                onNavigateToSchedule = { context.startActivity(Intent(context, ScheduleActivity::class.java)) },
-                onNavigateToProfile = { context.startActivity(Intent(context, ProfileActivity::class.java)) }
+                onNavigateToSchedule = {
+                    context.startActivity(
+                        Intent(
+                            context,
+                            ScheduleActivity::class.java
+                        )
+                    )
+                },
+                onNavigateToProfile = {
+                    context.startActivity(
+                        Intent(
+                            context,
+                            ProfileActivity::class.java
+                        )
+                    )
+                }
             )
         },
         floatingActionButton = {
@@ -457,17 +573,24 @@ fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityRes
                     val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("pt", "BR"))
                     Text(text = dateFormat.format(Date()), style = MaterialTheme.typography.titleLarge, color = Color.Gray)
                 }
+                IconButton(onClick = { showVoiceHelpDialog = true }) {
+                    Icon(
+                        Icons.Default.HelpOutline,
+                        contentDescription = "Ajuda com comandos de voz",
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 FilledTonalIconButton(
                     onClick = {
-                        if (PackageManager.PERMISSION_GRANTED == ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO)) {
+                        if (PackageManager.PERMISSION_GRANTED == ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
                             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale o comando...")
+                                launchSpeechRecognizer(voicePromptMessage)
                             }
-                            speechResultLauncher.launch(intent)
                         } else {
-                            permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
                     modifier = Modifier.size(56.dp),
@@ -520,9 +643,36 @@ fun HomeScreen(viewModel: TreatmentViewModel, addMedicationLauncher: ActivityRes
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, device = "id:pixel_6")
 @Composable
 fun DefaultPreview() {
+    // Cria uma lista de medicamentos falsos para o preview
+    val mockDoses = listOf(
+        MedicationDose(
+            id = 1,
+            medicationName = "Paracetamol",
+            dosage = "500mg",
+            time = "08:00",
+            status = MedicationStatus.PENDING,
+            postponeCount = 0
+        ),
+        MedicationDose(
+            id = 2,
+            medicationName = "Vitamina C",
+            dosage = "1 comprimido",
+            time = "08:00",
+            status = MedicationStatus.TAKEN
+        ),
+        MedicationDose(
+            id = 3,
+            medicationName = "Amoxicilina",
+            dosage = "250mg",
+            time = "14:00",
+            status = MedicationStatus.PENDING,
+            postponeCount = 2 // Exemplo de botão de adiar desabilitado
+        )
+    )
+
     MedicamentosTheme {
 
     }

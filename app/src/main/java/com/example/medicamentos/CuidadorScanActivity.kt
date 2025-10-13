@@ -1,6 +1,6 @@
 package com.example.medicamentos
 
-import android.content.Context
+import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -53,7 +53,7 @@ class CuidadorScanActivity : ComponentActivity() {
         setContent {
             MedicamentosTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    when (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)) {
+                    when (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)) {
                         PackageManager.PERMISSION_GRANTED -> {
                             CuidadorScanScreen(onCodeScanned = { result ->
                                 val prefix = "medlembrete://vincular?uid="
@@ -69,7 +69,7 @@ class CuidadorScanActivity : ComponentActivity() {
                         }
                         else -> {
                             SideEffect {
-                                requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                requestPermissionLauncher.launch(Manifest.permission.CAMERA)
                             }
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text("Pedindo permissão da câmera...")
@@ -93,7 +93,7 @@ class CuidadorScanActivity : ComponentActivity() {
                     val patientName = document.getString("name") ?: "Paciente"
 
                     // ✨ SALVANDO O ESTADO DO MODO CUIDADOR ✨
-                    val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+                    val sharedPreferences = getSharedPreferences("AppPreferences", MODE_PRIVATE)
                     with(sharedPreferences.edit()) {
                         putBoolean("KEY_IS_CAREGIVER_MODE", true)
                         putString("KEY_PATIENT_UID", patientUid)

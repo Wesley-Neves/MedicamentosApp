@@ -9,30 +9,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.medicamentos.data.CaregiverViewModel
 import com.example.medicamentos.data.CaregiverViewModelFactory
-import com.example.medicamentos.data.Treatment // Supondo que você tenha esta classe de dados
 import com.example.medicamentos.ui.theme.MedicamentosTheme
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class CaregiverScheduleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
